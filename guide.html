@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Dashboard: розбір коду</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: sticky table of contents on the left, one reading column on the right; single column on phones. */
+:root {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --ink: #17212b;
+  --muted: #5b6b7a;
+  --line: #d9e1e8;
+  --accent: #0b6fa4;
+  --accent-soft: #e1f0f8;
+  --code-bg: #eef2f6;
+  --warn: #8a5a00;
+  --warn-soft: #fff3d6;
+  --good: #1a7f4b;
+  --good-soft: #def5e8;
+  --bad: #b3261e;
+  --bad-soft: #fde7e5;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1720; --surface: #17212b; --ink: #e4ebf1; --muted: #92a3b3; --line: #2a3745;
+    --accent: #5cb8e6; --accent-soft: #14303f; --code-bg: #0c141b;
+    --warn: #f0c36a; --warn-soft: #3a2f12; --good: #6fd29b; --good-soft: #12301f;
+    --bad: #ff8d84; --bad-soft: #3d1a17;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1720; --surface: #17212b; --ink: #e4ebf1; --muted: #92a3b3; --line: #2a3745;
+  --accent: #5cb8e6; --accent-soft: #14303f; --code-bg: #0c141b;
+  --warn: #f0c36a; --warn-soft: #3a2f12; --good: #6fd29b; --good-soft: #12301f;
+  --bad: #ff8d84; --bad-soft: #3d1a17;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 40px; max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+nav.toc { position: sticky; top: 24px; align-self: start; font-size: 14px; }
+nav.toc p { margin: 0 0 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: s; }
+nav.toc li { counter-increment: s; }
+nav.toc a { display: block; padding: 5px 10px; border-left: 2px solid var(--line); color: var(--muted); text-decoration: none; }
+nav.toc a::before { content: counter(s) ". "; font-variant-numeric: tabular-nums; }
+nav.toc a:hover { color: var(--ink); border-left-color: var(--accent); }
+
+main { min-width: 0; }
+header.top { padding-bottom: 20px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+header.top .tag { font: 500 13px var(--font-mono); color: var(--accent); }
+h1 { margin: 6px 0 10px; font-size: 34px; line-height: 1.15; font-weight: 600; text-wrap: balance; }
+header.top p { margin: 0; max-width: 62ch; color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { font: 500 12px var(--font-mono); padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+
+section { padding-top: 36px; }
+h2 { margin: 0 0 12px; font-size: 24px; line-height: 1.25; font-weight: 600; text-wrap: balance; }
+h3 { margin: 28px 0 8px; font-size: 18px; font-weight: 600; }
+p { margin: 0 0 12px; max-width: 70ch; }
+ul, ol { max-width: 70ch; padding-left: 22px; margin: 0 0 12px; }
+li { margin-bottom: 4px; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+.file { margin: 14px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.file > .name { display: flex; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); font: 500 13px var(--font-mono); color: var(--muted); background: var(--code-bg); }
+.file > .name b { color: var(--ink); font-weight: 500; }
+pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--surface); font: 13px/1.55 var(--font-mono); tab-size: 2; }
+pre code { background: none; padding: 0; font-size: inherit; }
+
+.note { margin: 14px 0; padding: 12px 16px; border-radius: 8px; border-left: 4px solid var(--accent); background: var(--accent-soft); max-width: 70ch; }
+.note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+.note.good { border-left-color: var(--good); background: var(--good-soft); }
+.note.bad { border-left-color: var(--bad); background: var(--bad-soft); }
+.note p:last-child, .note ul:last-child { margin-bottom: 0; }
+.note strong.t { display: block; margin-bottom: 2px; }
+
+.tablewrap { overflow-x: auto; margin: 12px 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--code-bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; }
+td code { white-space: nowrap; }
+
+.flow { margin: 16px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px; overflow-x: auto; }
+.flow svg { display: block; min-width: 720px; width: 100%; height: auto; }
+.flow .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.flow .box.hot { fill: var(--accent-soft); stroke: var(--accent); }
+.flow .lbl { font: 600 13px var(--font-body); fill: var(--ink); }
+.flow .sub { font: 12px var(--font-mono); fill: var(--muted); }
+.flow .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.flow .arrowhead { fill: var(--muted); }
+.flow .cap { font: 12px var(--font-body); fill: var(--muted); }
+
+ol.steps { list-style: none; padding: 0; counter-reset: st; display: flex; flex-direction: column; gap: 10px; max-width: 76ch; }
+ol.steps li { counter-increment: st; display: grid; grid-template-columns: 30px 1fr; gap: 12px; margin: 0; }
+ol.steps li::before { content: counter(st); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--surface); font: 600 14px var(--font-body); }
+ol.steps li div { padding-top: 3px; }
+
+details { margin: 10px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); max-width: 76ch; }
+summary { cursor: pointer; padding: 10px 14px; font-weight: 500; }
+details[open] summary { border-bottom: 1px solid var(--line); }
+details .inner { padding: 12px 14px 4px; }
+
+.status { display: inline-block; font: 500 12px var(--font-mono); padding: 2px 8px; border-radius: 999px; }
+.status.ok { background: var(--good-soft); color: var(--good); }
+.status.no { background: var(--warn-soft); color: var(--warn); }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; gap: 0; padding: 20px 16px 60px; }
+  nav.toc { position: static; margin-bottom: 8px; }
+  nav.toc ol { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  nav.toc a { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  h1 { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<nav class="toc" aria-label="Зміст">
+  <p>Зміст</p>
+  <ol>
+    <li><a href="#big-picture">Загальна картина</a></li>
+    <li><a href="#files">Карта файлів</a></li>
+    <li><a href="#request">Шлях одного запиту</a></li>
+    <li><a href="#server">server.js</a></li>
+    <li><a href="#controller">Controller</a></li>
+    <li><a href="#service">Service</a></li>
+    <li><a href="#client">Client</a></li>
+    <li><a href="#forecast">Прогноз на 3 дні</a></li>
+    <li><a href="#frontend">Фронтенд</a></li>
+    <li><a href="#tests">Тести</a></li>
+    <li><a href="#key">Ключ і безпека</a></li>
+    <li><a href="#exercises">Вправи</a></li>
+    <li><a href="#status">Що перевірено</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="top">
+  <span class="tag">results/weather-dashboard</span>
+  <h1>Weather Dashboard: розбір коду</h1>
+  <p>Пошук міста, поточна погода і прогноз на 3 дні. Сервер на Node.js без залежностей ділиться на три шари: Controller, Service, Client. Нижче видно, що робить кожен файл і чому код розкладено саме так.</p>
+  <div class="meta">
+    <span class="chip">Node.js ≥ 20.12</span>
+    <span class="chip">0 залежностей</span>
+    <span class="chip">OpenWeatherMap 2.5</span>
+    <span class="chip">node:test</span>
+  </div>
+</header>
+
+<!-- 1 -->
+<section id="big-picture">
+  <h2>1. Загальна картина</h2>
+  <p>Браузер ніколи не звертається до OpenWeatherMap напряму. Він питає наш сервер, а сервер додає API-ключ і сам ходить до зовнішнього API. Так ключ лишається на сервері.</p>
+
+  <div class="flow" role="img" aria-label="Схема: браузер, Controller, Service, Client, OpenWeatherMap">
+    <svg viewBox="0 0 760 150" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="box" x="4" y="40" width="120" height="58" rx="8"/>
+      <text class="lbl" x="64" y="64" text-anchor="middle">Браузер</text>
+      <text class="sub" x="64" y="82" text-anchor="middle">public/app.js</text>
+
+      <rect class="box hot" x="168" y="40" width="130" height="58" rx="8"/>
+      <text class="lbl" x="233" y="64" text-anchor="middle">Controller</text>
+      <text class="sub" x="233" y="82" text-anchor="middle">HTTP</text>
+
+      <rect class="box hot" x="342" y="40" width="130" height="58" rx="8"/>
+      <text class="lbl" x="407" y="64" text-anchor="middle">Service</text>
+      <text class="sub" x="407" y="82" text-anchor="middle">логіка, DTO</text>
+
+      <rect class="box hot" x="516" y="40" width="110" height="58" rx="8"/>
+      <text class="lbl" x="571" y="64" text-anchor="middle">Client</text>
+      <text class="sub" x="571" y="82" text-anchor="middle">Adapter</text>
+
+      <rect class="box" x="660" y="40" width="96" height="58" rx="8"/>
+      <text class="lbl" x="708" y="64" text-anchor="middle">OpenWeather</text>
+      <text class="sub" x="708" y="82" text-anchor="middle">Map</text>
+
+      <path class="arrow" d="M124 69H166" marker-end="url(#ah)"/>
+      <path class="arrow" d="M298 69H340" marker-end="url(#ah)"/>
+      <path class="arrow" d="M472 69H514" marker-end="url(#ah)"/>
+      <path class="arrow" d="M626 69H658" marker-end="url(#ah)"/>
+
+      <text class="cap" x="64" y="124" text-anchor="middle">GET /api/weather?city=</text>
+      <text class="cap" x="233" y="124" text-anchor="middle">?city= → рядок</text>
+      <text class="cap" x="407" y="124" text-anchor="middle">рядок → DTO</text>
+      <text class="cap" x="571" y="124" text-anchor="middle">+ appid, units, lang</text>
+    </svg>
+  </div>
+
+  <p>Залежності йдуть тільки вправо. Controller викликає Service, Service викликає Client. Жоден шар не знає про те, що лівіше від нього.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Шар</th><th>Відповідає за</th><th>Не знає про</th></tr></thead>
+    <tbody>
+      <tr><td>Controller</td><td>прочитати <code>?city=</code>, віддати JSON і статус</td><td>бізнес-правила</td></tr>
+      <tr><td>Service</td><td>валідація, мапінг у свою структуру, прогноз на 3 дні</td><td>HTTP, URL, ключ</td></tr>
+      <tr><td>Client</td><td>запити до OpenWeatherMap, коди 401/404/429</td><td>що робити з даними</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 2 -->
+<section id="files">
+  <h2>2. Карта файлів</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Файл</th><th>Роль</th></tr></thead>
+    <tbody>
+      <tr><td><code>server.js</code></td><td>Composition root: створює об'єкти, передає залежності, запускає HTTP-сервер</td></tr>
+      <tr><td><code>src/config.js</code></td><td>Читає <code>.env</code>, перевіряє, що ключ є</td></tr>
+      <tr><td><code>src/errors.js</code></td><td><code>AppError(status, message)</code>: помилка зі статусом</td></tr>
+      <tr><td><code>src/controllers/weatherController.js</code></td><td>Обробник <code>/api/weather</code>, перетворює помилки на відповіді</td></tr>
+      <tr><td><code>src/services/weatherService.js</code></td><td>Бізнес-логіка і <code>buildDailyForecast</code></td></tr>
+      <tr><td><code>src/clients/openWeatherClient.js</code></td><td>Єдине місце, що знає OpenWeatherMap</td></tr>
+      <tr><td><code>src/staticHandler.js</code></td><td>Роздає <code>public/</code> із захистом від <code>../</code></td></tr>
+      <tr><td><code>public/index.html, style.css, app.js</code></td><td>Інтерфейс: форма, картки, іконки</td></tr>
+      <tr><td><code>test/weatherService.test.js</code></td><td>5 тестів сервісу без мережі</td></tr>
+      <tr><td><code>.env</code> / <code>.env.example</code></td><td>Ключ (у git не потрапляє) / шаблон без ключа</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><strong class="t">З чого починати читання</strong><p>Порядок: <code>server.js</code> → Controller → Service → Client → тест. Так видно, як із запиту складається відповідь.</p></div>
+</section>
+
+<!-- 3 -->
+<section id="request">
+  <h2>3. Шлях одного запиту</h2>
+  <p>Користувач вводить <code>Kyiv</code> і натискає «Шукати».</p>
+  <ol class="steps">
+    <li><div><code>app.js</code> робить <code>fetch('/api/weather?city=Kyiv')</code>. Назва проходить через <code>encodeURIComponent</code>, тож пробіли й кирилиця не ламають URL.</div></li>
+    <li><div><code>server.js</code> бачить шлях <code>/api/weather</code> і передає запит у <code>getWeather</code> (Controller). Інші шляхи йдуть у <code>serveStatic</code>.</div></li>
+    <li><div>Controller бере <code>city</code> з <code>url.searchParams</code> і викликає <code>weatherService.getWeather(city)</code>.</div></li>
+    <li><div>Service обрізає пробіли, перевіряє довжину (1–100 символів), потім через <code>Promise.all</code> запускає <strong>два запити одночасно</strong>: поточна погода і прогноз.</div></li>
+    <li><div>Client формує URL з <code>appid</code>, <code>units=metric</code>, <code>lang=ua</code>, робить <code>fetch</code>, а за статусом відповіді кидає <code>AppError</code> або повертає JSON.</div></li>
+    <li><div>Service перетворює два сирі JSON в одну свою структуру (DTO) і викликає <code>buildDailyForecast</code>.</div></li>
+    <li><div>Controller віддає DTO зі статусом 200. Якщо хтось кинув <code>AppError</code>, він віддає <code>{ error }</code> з тим статусом, який у помилки.</div></li>
+    <li><div><code>app.js</code> малює картку «зараз» і три картки прогнозу.</div></li>
+  </ol>
+</section>
+
+<!-- 4 -->
+<section id="server">
+  <h2>4. server.js: збирання застосунку</h2>
+  <div class="file"><div class="name"><b>server.js</b><span>composition root</span></div>
+<pre><code>// Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо шари між собою.
+//   HTTP → controller → service → client → OpenWeatherMap
+import http from 'node:http';
+import { loadConfig } from './src/config.js';
+import { createOpenWeatherClient } from './src/clients/openWeatherClient.js';
+import { createWeatherService } from './src/services/weatherService.js';
+import { createWeatherController } from './src/controllers/weatherController.js';
+import { createStaticHandler } from './src/staticHandler.js';
+
+let config;
+try {
+  config = loadConfig();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+
+// Dependency Injection вручну: кожен шар отримує те, що йому потрібно, через аргументи.
+const client = createOpenWeatherClient({ apiKey: config.apiKey });
+const weatherService = createWeatherService({ client });
+const getWeather = createWeatherController({ weatherService });
+const serveStatic = createStaticHandler(config.publicDir);
+
+http
+  .createServer((req, res) =&gt; {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (req.method !== 'GET') return void res.writeHead(405).end();
+    if (url.pathname === '/api/weather') return void getWeather(req, res, url);
+    serveStatic(req, res, url);
+  })
+  .listen(config.port, () =&gt; console.log(`Weather Dashboard: http://localhost:${config.port}`));</code></pre></div>
+  <p>Це єдине місце, де шари <strong>створюються і з'єднуються</strong>. Решта файлів експортують фабрики (<code>createX</code>) і нічого не створюють самі.</p>
+  <div class="note"><strong class="t">Dependency Injection вручну</strong>
+    <p>Фабрика <code>createWeatherService({ client })</code> бере клієнта <em>аргументом</em>. Сервіс не пише <code>import { client } ...</code> і не залежить від конкретної реалізації. У тесті сюди передають фейк, у продакшені справжній Client. Для цього не потрібен жоден фреймворк.</p></div>
+  <p>Також тут перевіряється конфіг: якщо ключа немає, програма завершується з зрозумілим повідомленням, а не падає пізніше з 401.</p>
+</section>
+
+<!-- 5 -->
+<section id="controller">
+  <h2>5. Controller: HTTP-шар</h2>
+  <div class="file"><div class="name"><b>src/controllers/weatherController.js</b><span>шар 1</span></div>
+<pre><code>// ШАР 1 — Controller (HTTP-шар). Читає запит, викликає сервіс, формує відповідь.
+// Жодної бізнес-логіки: лише «HTTP in → service → HTTP out».
+import { AppError } from '../errors.js';
+
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(body));
+}
+
+export function createWeatherController({ weatherService }) {
+  return async function getWeather(req, res, url) {
+    try {
+      const data = await weatherService.getWeather(url.searchParams.get('city'));
+      sendJson(res, 200, data);
+    } catch (err) {
+      if (err instanceof AppError) return sendJson(res, err.status, { error: err.message });
+      console.error(err); // непередбачена помилка — деталі лише в лог, клієнту загальне повідомлення
+      sendJson(res, 500, { error: 'Внутрішня помилка сервера.' });
+    }
+  };
+}</code></pre></div>
+  <ul>
+    <li>Контролер <strong>не містить логіки</strong>: бере параметр, викликає сервіс, віддає результат.</li>
+    <li><code>err instanceof AppError</code> означає «очікувана помилка»: статус і текст уже вирішені нижче, контролер їх лише віддає.</li>
+    <li>Будь-яка інша помилка (баг) іде в консоль, а клієнт отримує загальне 500. Деталі помилки назовні не виходять.</li>
+  </ul>
+  <div class="note warn"><strong class="t">Підводний камінь</strong><p>Кожна функція, що кидає, має бути всередині <code>try</code>. Інакше відхилений <code>Promise</code> у <code>http.createServer</code> залишить запит без відповіді.</p></div>
+</section>
+
+<!-- 6 -->
+<section id="service">
+  <h2>6. Service: логіка і власний формат даних</h2>
+  <div class="file"><div class="name"><b>src/services/weatherService.js</b><span>шар 2</span></div>
+<pre><code>// ШАР 2 — Service (бізнес-логіка). Нічого не знає ні про HTTP, ні про URL OpenWeatherMap.
+// Залежності (client, now) приходять ззовні → у тестах підставляємо фейки (Dependency Injection).
+import { AppError } from '../errors.js';
+
+const DAYS = 3;
+
+// dt — UNIX-секунди (UTC), timezone — зсув міста від UTC у секундах → "YYYY-MM-DD" за місцевим часом.
+const localDate = (dt, tz) =&gt; new Date((dt + tz) * 1000).toISOString().slice(0, 10);
+const localHour = (dt, tz) =&gt; new Date((dt + tz) * 1000).getUTCHours();
+
+// Чиста функція (без побічних ефектів) — легко тестувати.
+// Прогноз = 40 записів по 3 год. Групуємо по днях міста й беремо 3 дні після сьогоднішнього.
+export function buildDailyForecast(forecast, nowMs) {
+  const tz = forecast.city.timezone;
+  const today = localDate(Math.floor(nowMs / 1000), tz);
+
+  const byDay = new Map();
+  for (const item of forecast.list) {
+    const day = localDate(item.dt, tz);
+    if (day === today) continue;
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(item);
+  }
+
+  return [...byDay.entries()].slice(0, DAYS).map(([date, items]) =&gt; {
+    const temps = items.map((i) =&gt; i.main.temp);
+    const humidity = items.reduce((sum, i) =&gt; sum + i.main.humidity, 0) / items.length;
+    // Іконка/опис — із запису, найближчого до полудня
+    const noon = items.reduce((best, i) =&gt;
+      Math.abs(localHour(i.dt, tz) - 12) &lt; Math.abs(localHour(best.dt, tz) - 12) ? i : best,
+    );
+    return {
+      date,
+      min: Math.min(...temps),
+      max: Math.max(...temps),
+      humidity: Math.round(humidity),
+      icon: noon.weather[0].icon.replace('n', 'd'),
+      description: noon.weather[0].description,
+    };
+  });
+}
+
+export function createWeatherService({ client, now = Date.now }) {
+  return {
+    async getWeather(rawCity) {
+      const city = String(rawCity ?? '').trim();
+      if (!city || city.length &gt; 100) throw new AppError(400, 'Вкажи назву міста (до 100 символів).');
+
+      const [current, forecast] = await Promise.all([client.getCurrent(city), client.getForecast(city)]);
+
+      // Мапимо чужий формат у НАШ (DTO). Фронтенд залежить лише від цієї форми.
+      return {
+        city: current.name,
+        country: current.sys.country,
+        description: current.weather[0].description,
+        icon: current.weather[0].icon,
+        temp: current.main.temp,
+        feelsLike: current.main.feels_like,
+        humidity: current.main.humidity,
+        pressure: current.main.pressure,
+        windSpeed: current.wind.speed,
+        forecast: buildDailyForecast(forecast, now()),
+      };
+    },
+  };
+}</code></pre></div>
+  <h3>Що тут важливо</h3>
+  <ul>
+    <li><strong>Валідація</strong> стоїть до будь-якого запиту: порожнє місто не витрачає ліміт API.</li>
+    <li><strong>DTO.</strong> Фронтенд читає <code>temp</code>, <code>feelsLike</code>, <code>windSpeed</code>, а не <code>main.temp</code> чи <code>wind.speed</code>. Якщо OpenWeatherMap змінить формат, правка буде тільки тут.</li>
+    <li><strong><code>now = Date.now</code> як параметр.</strong> «Сьогодні» залежить від годинника. Параметр дає змогу зафіксувати час у тесті.</li>
+    <li><strong><code>buildDailyForecast</code> експортується окремо.</strong> Це чиста функція: ті самі вхідні дані дають той самий результат, без мережі й побічних ефектів. Її найпростіше тестувати.</li>
+  </ul>
+</section>
+
+<!-- 7 -->
+<section id="client">
+  <h2>7. Client: адаптер до OpenWeatherMap</h2>
+  <div class="file"><div class="name"><b>src/clients/openWeatherClient.js</b><span>шар 3</span></div>
+<pre><code>// ШАР 3 — Client (патерн Adapter / Gateway).
+// Єдине місце, яке знає, ЯК говорити з OpenWeatherMap: URL, параметри, коди відповідей.
+// Повертає «сирий» JSON як є; помилки HTTP перетворює на AppError.
+import { AppError } from '../errors.js';
+
+const BASE_URL = 'https://api.openweathermap.org/data/2.5';
+
+export function createOpenWeatherClient({ apiKey, fetchFn = fetch }) {
+  async function request(endpoint, city) {
+    const url = new URL(`${BASE_URL}/${endpoint}`);
+    url.search = new URLSearchParams({ q: city, appid: apiKey, units: 'metric', lang: 'ua' });
+
+    let res;
+    try {
+      res = await fetchFn(url);
+    } catch {
+      throw new AppError(502, 'Не вдалося звʼязатися з OpenWeatherMap.');
+    }
+
+    if (res.status === 401) {
+      throw new AppError(502, 'API-ключ недійсний або ще не активований (до 2 годин після створення).');
+    }
+    if (res.status === 404) throw new AppError(404, `Місто «${city}» не знайдено.`);
+    if (res.status === 429) throw new AppError(429, 'Перевищено ліміт запитів, спробуй пізніше.');
+    if (!res.ok) throw new AppError(502, 'Помилка сервісу погоди.');
+
+    return res.json();
+  }
+
+  return {
+    getCurrent: (city) =&gt; request('weather', city), // поточна погода
+    getForecast: (city) =&gt; request('forecast', city), // 5 днів × кожні 3 години
+  };
+}</code></pre></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Відповідь OpenWeatherMap</th><th>Що кидає Client</th><th>Що побачить користувач</th></tr></thead>
+    <tbody>
+      <tr><td class="num">401</td><td><code>AppError(502)</code></td><td>ключ недійсний або ще не активований</td></tr>
+      <tr><td class="num">404</td><td><code>AppError(404)</code></td><td>місто не знайдено</td></tr>
+      <tr><td class="num">429</td><td><code>AppError(429)</code></td><td>перевищено ліміт, спробуй пізніше</td></tr>
+      <tr><td class="num">інші не-2xx</td><td><code>AppError(502)</code></td><td>помилка сервісу погоди</td></tr>
+      <tr><td>мережа недоступна</td><td><code>AppError(502)</code></td><td>не вдалося звʼязатися</td></tr>
+    </tbody>
+  </table></div>
+  <p>Для нашого клієнта 401 від провайдера означає «наш сервер налаштований неправильно», а не «користувач не авторизований». Тому віддаємо 502 (поганий шлюз), а не 401.</p>
+  <div class="note"><strong class="t">Чому <code>fetchFn = fetch</code></strong><p>Параметр за замовчуванням дає змогу в тесті клієнта підставити фейкову функцію й перевірити, як клієнт реагує на 401, 404, 429. Такого тесту в проєкті поки немає. Це одна з вправ.</p></div>
+</section>
+
+<!-- 8 -->
+<section id="forecast">
+  <h2>8. Прогноз на 3 дні: розбір на прикладі</h2>
+  <p>Безкоштовний тариф не має «прогнозу по днях». Є <code>/forecast</code>: до 40 записів із кроком 3 години. Функція <code>buildDailyForecast</code> перетворює їх на 3 дні.</p>
+
+  <h3>Алгоритм</h3>
+  <ol>
+    <li>Для кожного запису рахуємо місцеву дату: <code>(dt + city.timezone)</code> секунд від UTC.</li>
+    <li>Записи сьогоднішнього дня відкидаємо, щоб «прогноз» не дублював блок «зараз».</li>
+    <li>Групуємо за датою (<code>Map</code> зберігає порядок вставки).</li>
+    <li>Беремо перші 3 групи.</li>
+    <li>Для кожної: мінімум і максимум температур, середня вологість, іконка і опис із запису, найближчого до 12:00.</li>
+  </ol>
+
+  <h3>Числовий приклад (з тесту)</h3>
+  <p>Зараз 2026-11-02 10:00 UTC, часовий пояс міста UTC+0.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Запис (UTC)</th><th>t, °C</th><th>Що відбувається</th></tr></thead>
+    <tbody>
+      <tr><td class="num">02.11 15:00</td><td class="num">9</td><td>сьогодні → відкидається</td></tr>
+      <tr><td class="num">03.11 03:00</td><td class="num">2</td><td rowspan="2">день 1: min 2, max 8, іконка із запису 12:00</td></tr>
+      <tr><td class="num">03.11 12:00</td><td class="num">8</td></tr>
+      <tr><td class="num">04.11 12:00</td><td class="num">5</td><td>день 2</td></tr>
+      <tr><td class="num">05.11 12:00</td><td class="num">6</td><td>день 3</td></tr>
+      <tr><td class="num">06.11 12:00</td><td class="num">7</td><td>четвертий день → відкидається (<code>slice(0, 3)</code>)</td></tr>
+    </tbody>
+  </table></div>
+
+  <details>
+    <summary>Чому важливий часовий пояс міста</summary>
+    <div class="inner">
+      <p>Запис о 22:30 UTC для міста в UTC+2 це вже 00:30 <em>наступного</em> дня. Якщо рахувати дату за UTC або за часом сервера, цей запис потрапить не в той день, і min/max будуть хибні. Тому дата береться як <code>new Date((dt + timezone) * 1000).toISOString().slice(0, 10)</code>. Використовується <code>getUTCHours</code>, бо до числа вже додано зсув міста.</p>
+      <p>Є окремий тест на цей випадок.</p>
+    </div>
+  </details>
+  <details>
+    <summary>Чому нічну іконку (<code>10n</code>) замінено на денну (<code>10d</code>)</summary>
+    <div class="inner"><p>Картка дня описує день загалом. Іконка місяця на картці «завтра» збиває з пантелику, тому в коді <code>icon.replace('n', 'd')</code>.</p></div>
+  </details>
+</section>
+
+<!-- 9 -->
+<section id="frontend">
+  <h2>9. Фронтенд</h2>
+  <div class="file"><div class="name"><b>public/app.js</b><span>малює DTO</span></div>
+<pre><code>// Фронтенд лише малює готовий DTO з /api/weather. Уся логіка (мапінг, прогноз на 3 дні) — на сервері.
+const $ = (id) =&gt; document.getElementById(id);
+
+const form = $('search');
+const input = $('city');
+const statusEl = $('status');
+
+const iconUrl = (code) =&gt; `https://openweathermap.org/img/wn/${code}@2x.png`;
+const round = (n) =&gt; Math.round(n);
+
+function setStatus(text, isError = false) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('error', isError);
+}
+
+function renderCurrent(w) {
+  $('cur-city').textContent = `${w.city}, ${w.country}`;
+  $('cur-desc').textContent = w.description;
+  $('cur-temp').textContent = `${round(w.temp)}°C`;
+  $('cur-feels').textContent = `${round(w.feelsLike)}°C`;
+  $('cur-humidity').textContent = `${w.humidity}%`;
+  $('cur-wind').textContent = `${w.windSpeed.toFixed(1)} м/с`;
+  $('cur-pressure').textContent = `${w.pressure} гПа`;
+
+  const icon = $('cur-icon');
+  icon.src = iconUrl(w.icon);
+  icon.alt = w.description;
+  $('current').hidden = false;
+}
+
+function renderForecast(days) {
+  const box = $('days');
+  box.replaceChildren(); // createElement + textContent замість innerHTML — без XSS
+
+  for (const d of days) {
+    const el = document.createElement('div');
+    el.className = 'day';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = new Date(`${d.date}T12:00:00Z`).toLocaleDateString('uk-UA', {
+      weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC',
+    });
+
+    const img = document.createElement('img');
+    img.src = iconUrl(d.icon);
+    img.alt = d.description;
+    img.width = img.height = 70;
+
+    const range = document.createElement('div');
+    range.className = 'range';
+    range.append(`${round(d.max)}° `);
+    const min = document.createElement('span');
+    min.textContent = `${round(d.min)}°`;
+    range.append(min);
+
+    const hum = document.createElement('div');
+    hum.className = 'hum';
+    hum.textContent = `Вологість ${d.humidity}%`;
+
+    el.append(name, img, range, hum);
+    box.append(el);
+  }
+  $('forecast').hidden = days.length === 0;
+}
+
+async function loadWeather(city) {
+  const button = form.querySelector('button');
+  button.disabled = true;
+  setStatus('Завантаження…');
+
+  try {
+    const res = await fetch(`/api/weather?city=${encodeURIComponent(city)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Щось пішло не так.');
+
+    renderCurrent(data);
+    renderForecast(data.forecast);
+    setStatus('');
+    localStorage.setItem('lastCity', city);
+  } catch (err) {
+    $('current').hidden = true;
+    $('forecast').hidden = true;
+    setStatus(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+form.addEventListener('submit', (e) =&gt; {
+  e.preventDefault();
+  const city = input.value.trim();
+  if (city) loadWeather(city);
+});
+
+const last = localStorage.getItem('lastCity');
+if (last) {
+  input.value = last;
+  loadWeather(last);
+}</code></pre></div>
+  <ul>
+    <li><strong>Логіки погоди немає.</strong> Дані вже підготовлені сервером, фронтенд їх лише показує.</li>
+    <li><strong>Без <code>innerHTML</code>.</strong> Усе, що прийшло з API (назва міста, опис), вставляється через <code>textContent</code>. Якщо в даних опиниться <code>&lt;script&gt;</code>, браузер покаже його як текст (захист від XSS).</li>
+    <li><code>finally</code> повертає кнопку в активний стан за будь-якого результату.</li>
+    <li><code>localStorage</code> пам'ятає останнє місто: після перезавантаження сторінка одразу показує його погоду.</li>
+    <li>Ім'я дня тижня формує <code>toLocaleDateString('uk-UA', ...)</code> з <code>timeZone: 'UTC'</code>, бо <code>date</code> від сервера вже локальна дата міста і її не треба зсувати вдруге.</li>
+  </ul>
+</section>
+
+<!-- 10 -->
+<section id="tests">
+  <h2>10. Тести</h2>
+  <div class="file"><div class="name"><b>test/weatherService.test.js</b><span>npm test</span></div>
+<pre><code>// Запуск: npm test  (вбудований node:test, без залежностей)
+// Бачиш перевагу шарів: сервіс тестуємо БЕЗ мережі, підставивши фейковий client.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createWeatherService, buildDailyForecast } from '../src/services/weatherService.js';
+import { AppError } from '../src/errors.js';
+
+const NOW = Date.parse('2026-11-02T10:00:00Z');
+
+// запис прогнозу: дата-час UTC, температура
+const item = (iso, temp, icon = '10n') =&gt; ({
+  dt: Date.parse(iso) / 1000,
+  main: { temp, humidity: 80 },
+  weather: [{ icon, description: 'дощ' }],
+});
+
+const forecast = {
+  city: { timezone: 0 },
+  list: [
+    item('2026-11-02T15:00:00Z', 9), // сьогодні — має бути відкинуто
+    item('2026-11-03T03:00:00Z', 2),
+    item('2026-11-03T12:00:00Z', 8, '01d'),
+    item('2026-11-04T12:00:00Z', 5),
+    item('2026-11-05T12:00:00Z', 6),
+    item('2026-11-06T12:00:00Z', 7), // 4-й день — відкидаємо
+  ],
+};
+
+test('buildDailyForecast: пропускає сьогодні й повертає рівно 3 дні', () =&gt; {
+  const days = buildDailyForecast(forecast, NOW);
+  assert.deepEqual(days.map((d) =&gt; d.date), ['2026-11-03', '2026-11-04', '2026-11-05']);
+});
+
+test('buildDailyForecast: рахує min/max та бере денну іконку найближчу до полудня', () =&gt; {
+  const [first] = buildDailyForecast(forecast, NOW);
+  assert.equal(first.min, 2);
+  assert.equal(first.max, 8);
+  assert.equal(first.icon, '01d');
+});
+
+test('buildDailyForecast: враховує часовий пояс міста', () =&gt; {
+  // 22:00 UTC = 00:00 наступного дня в UTC+2 → це вже «завтра» для міста
+  const tzForecast = { city: { timezone: 7200 }, list: [item('2026-11-02T22:30:00Z', 4)] };
+  const [day] = buildDailyForecast(tzForecast, NOW);
+  assert.equal(day.date, '2026-11-03');
+});
+
+test('getWeather: мапить відповідь у наш DTO', async () =&gt; {
+  const client = {
+    getCurrent: async () =&gt; ({
+      name: 'Kyiv', sys: { country: 'UA' },
+      weather: [{ description: 'ясно', icon: '01d' }],
+      main: { temp: 10.4, feels_like: 9, humidity: 60, pressure: 1012 },
+      wind: { speed: 3 },
+    }),
+    getForecast: async () =&gt; forecast,
+  };
+  const service = createWeatherService({ client, now: () =&gt; NOW });
+  const w = await service.getWeather('  Kyiv ');
+  assert.equal(w.city, 'Kyiv');
+  assert.equal(w.humidity, 60);
+  assert.equal(w.forecast.length, 3);
+});
+
+test('getWeather: порожнє місто → AppError 400, клієнт не викликається', async () =&gt; {
+  const client = { getCurrent: () =&gt; assert.fail(), getForecast: () =&gt; assert.fail() };
+  const service = createWeatherService({ client });
+  await assert.rejects(() =&gt; service.getWeather('   '), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
+});</code></pre></div>
+  <p>Тести використовують вбудований <code>node:test</code> і <code>node:assert</code>: ні Jest, ні Vitest не потрібні.</p>
+  <ul>
+    <li><strong>Фейковий Client</strong> — звичайний об'єкт із двома <code>async</code>-функціями. Це і є користь від шарів та DI.</li>
+    <li><strong>Фіксований час.</strong> <code>NOW</code> передається як <code>now: () =&gt; NOW</code>, тому тест не залежить від дня запуску.</li>
+    <li><strong>Тест «клієнт не викликається».</strong> Функції фейка містять <code>assert.fail()</code>: якщо сервіс спробує піти в мережу з порожнім містом, тест упаде.</li>
+  </ul>
+  <div class="note warn"><strong class="t">Чого немає</strong><p>Немає тестів для Client і Controller. Client тестується підміною <code>fetchFn</code>, Controller перевіряється запитом до запущеного сервера (як у ручній перевірці).</p></div>
+</section>
+
+<!-- 11 -->
+<section id="key">
+  <h2>11. Ключ і безпека</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Ризик</th><th>Як закрито</th></tr></thead>
+    <tbody>
+      <tr><td>Ключ видно у DevTools</td><td>Браузер викликає <code>/api/weather</code>, а <code>appid</code> додається лише на сервері</td></tr>
+      <tr><td>Ключ потрапить у git</td><td><code>.env</code> у <code>.gitignore</code>; у репозиторії тільки <code>.env.example</code></td></tr>
+      <tr><td>Читання довільних файлів (<code>/../server.js</code>)</td><td><code>path.normalize</code> + перевірка, що шлях починається з <code>public/</code></td></tr>
+      <tr><td>XSS через дані API</td><td><code>textContent</code> замість <code>innerHTML</code></td></tr>
+      <tr><td>Довгі й порожні входи</td><td>Валідація в Service: 1–100 символів</td></tr>
+      <tr><td>Витік деталей помилок</td><td>Для неочікуваних помилок клієнт бачить лише «Внутрішня помилка сервера»</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note bad"><strong class="t">Якщо ключ потрапив у чат, скриншот чи репозиторій</strong><p>Вважай його скомпрометованим: на сторінці API keys в OpenWeatherMap видали його й створи новий. Безкоштовний тариф має ліміт 60 запитів на хвилину, тож чужий ключ швидко його вичерпає.</p></div>
+</section>
+
+<!-- 12 -->
+<section id="exercises">
+  <h2>12. Вправи</h2>
+  <ol>
+    <li><strong>Тест для Client.</strong> Передай фейковий <code>fetchFn</code>, що повертає <code>{ status: 401 }</code>, і перевір, що кинуто <code>AppError</code> зі статусом 502.</li>
+    <li><strong>Кеш на 10 хвилин.</strong> У Service зберігай відповідь у <code>Map</code> за ключем <code>city.toLowerCase()</code> разом із часом запису. Подивись, скільки файлів довелося змінити (має вийти один).</li>
+    <li><strong>Градуси Фаренгейта.</strong> Додай параметр <code>?units=imperial</code>. Де його чекати: Controller (прочитати), Service (передати), Client (використати)?</li>
+    <li><strong>Геокодинг.</strong> Додай у Client метод для <code>/geo/1.0/direct</code> і поверни координати разом із погодою. Скільки шарів зачепила зміна?</li>
+    <li><strong>Зламай навмисно.</strong> Зміни <code>slice(0, DAYS)</code> на <code>slice(0, DAYS + 1)</code> і подивись, який тест впаде.</li>
+  </ol>
+  <details>
+    <summary>Перевір себе: чому Service не імпортує Client напряму?</summary>
+    <div class="inner"><p>Тоді не вийде підставити фейк: тест ходив би в справжню мережу з справжнім ключем. Передача через аргумент (DI) робить залежність замінною, а Service незалежним від URL і формату конкретного провайдера.</p></div>
+  </details>
+  <details>
+    <summary>Перевір себе: що буде, якщо в Controller забути <code>try/catch</code>?</summary>
+    <div class="inner"><p><code>weatherService.getWeather</code> асинхронна. Помилка перетворюється на відхилений <code>Promise</code>, який у <code>http.createServer</code> ніхто не обробить. Клієнт не отримає відповіді, а в Node 15+ необроблене відхилення може завершити процес.</p></div>
+  </details>
+</section>
+
+<!-- 13 -->
+<section id="status">
+  <h2>13. Що перевірено</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Перевірка</th><th>Результат</th></tr></thead>
+    <tbody>
+      <tr><td>Юніт-тести (<code>npm test</code>)</td><td><span class="status ok">5 з 5 пройшли</span></td></tr>
+      <tr><td>Сервер стартує, <code>/</code> віддає сторінку</td><td><span class="status ok">200</span></td></tr>
+      <tr><td><code>/../server.js</code></td><td><span class="status ok">404, файл не віддається</span></td></tr>
+      <tr><td>Запит без міста</td><td><span class="status ok">400 з поясненням</span></td></tr>
+      <tr><td>Живий запит з реальним ключем</td><td><span class="status no">не пройшов: 401</span></td></tr>
+      <tr><td>Вигляд сторінки в браузері</td><td><span class="status no">не перевірено</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note warn"><strong class="t">Про 401 на живому запиті</strong>
+    <p>OpenWeatherMap відповів «Invalid API key» на ключ із формату 32 hex-символи. Найімовірніша причина: ключ щойно створений і ще не активований (це займає від кількох хвилин до 2 годин). Код при цьому поводиться правильно: показує зрозуміле повідомлення. Коли ключ запрацює, повтори <code>npm start</code> і відкрий <code>http://localhost:3000</code>.</p></div>
+</section>
+
+</main>
+</div>
+</body>
+</html>
