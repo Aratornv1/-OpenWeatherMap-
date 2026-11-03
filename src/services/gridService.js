@@ -1,6 +1,8 @@
-// ШАР 2 — Service для анімованої карти вітру.
-// Бере прогноз вітру по сітці над Європою, кешує його (щоб не вичерпати ліміти Open-Meteo)
-// і віддає по одній годині у форматі, який розуміє leaflet-velocity: [U-компонента, V-компонента].
+// ШАР 2 — Service для карт по сітці: анімований вітер і опади.
+// Бере прогноз по сітці над Європою ОДНИМ набором запитів до Open-Meteo, кешує його
+// (щоб не вичерпати ліміти) і віддає по одній годині:
+//   • вітер  → [U, V] у форматі leaflet-velocity;
+//   • опади  → плоский масив мм/год + опис сітки для власного canvas-шару.
 import { AppError } from '../errors.js';
 
 // Сітка: рядки йдуть з ПІВНОЧІ на південь, колонки — із заходу на схід (так вимагає leaflet-velocity).
@@ -18,6 +20,12 @@ export function gridSize(grid = GRID) {
     ny: Math.round((grid.la1 - grid.la2) / grid.step) + 1,
     nx: Math.round((grid.lo2 - grid.lo1) / grid.step) + 1,
   };
+}
+
+// Опис сітки для клієнта: з нього він знає, де лежить кожне значення масиву.
+export function gridInfo(grid = GRID) {
+  const { nx, ny } = gridSize(grid);
+  return { la1: grid.la1, la2: grid.la2, lo1: grid.lo1, lo2: grid.lo2, dx: grid.step, dy: grid.step, nx, ny };
 }
 
 // Усі точки сітки в порядку даних: рядок за рядком, з північного заходу.
@@ -41,11 +49,10 @@ export function toUV(speed, directionDeg) {
 
 // Збирає два «GRIB-подібні» обʼєкти (U і V) для leaflet-velocity з масивів значень сітки.
 export function buildVelocityData(uValues, vValues, refTimeIso, grid = GRID) {
-  const { nx, ny } = gridSize(grid);
+  const { lo1, lo2, la1, la2, dx, dy, nx, ny } = gridInfo(grid);
   const header = (parameterNumber, parameterNumberName) => ({
     parameterCategory: 2, parameterNumber, parameterNumberName, parameterUnit: 'm.s-1',
-    lo1: grid.lo1, lo2: grid.lo2, la1: grid.la1, la2: grid.la2,
-    dx: grid.step, dy: grid.step, nx, ny, refTime: refTimeIso,
+    lo1, lo2, la1, la2, dx, dy, nx, ny, refTime: refTimeIso,
   });
   return [
     { header: header(2, 'U-component_of_wind'), data: uValues },
@@ -55,29 +62,31 @@ export function buildVelocityData(uValues, vValues, refTimeIso, grid = GRID) {
 
 const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createWindService({ client, now = Date.now, sleep = sleepMs, pauseMs = 1000 }) {
-  let cache = null; // { fetchedAt, startSec, hours, speed: [[…]], dir: [[…]] } — по точках
+export function createGridService({ client, now = Date.now, sleep = sleepMs, pauseMs = 1000 }) {
+  let cache = null; // { fetchedAt, startSec, hours, speed, dir, precip } — масиви по точках
   let inflight = null;
 
   async function fetchGrid() {
     const points = gridPoints();
     const speed = [];
     const dir = [];
+    const precip = [];
     let times = null;
 
     for (let i = 0; i < points.length; i += CHUNK_SIZE) {
       if (i > 0) await sleep(pauseMs); // не частимо: ліміт 600 викликів на хвилину
       const chunk = points.slice(i, i + CHUNK_SIZE);
-      const results = await client.getWind(chunk, FORECAST_HOURS);
+      const results = await client.getGrid(chunk, FORECAST_HOURS);
       if (results.length !== chunk.length) throw new AppError(502, 'Open-Meteo повернув неповні дані.');
 
       for (const r of results) {
         times ??= r.hourly.time;
         speed.push(r.hourly.wind_speed_10m);
         dir.push(r.hourly.wind_direction_10m);
+        precip.push(r.hourly.precipitation);
       }
     }
-    return { fetchedAt: now(), startSec: times[0], hours: times.length, speed, dir };
+    return { fetchedAt: now(), startSec: times[0], hours: times.length, speed, dir, precip };
   }
 
   // Свіжий кеш → віддаємо. Інакше оновлюємо; кілька одночасних запитів ділять один запит назовні.
@@ -94,19 +103,26 @@ export function createWindService({ client, now = Date.now, sleep = sleepMs, pau
     return inflight;
   }
 
+  // Спільна частина для всіх кадрів: перевірка години, зсув від початку кешу, час кадру.
+  async function locate(rawHour) {
+    const hour = Number(rawHour ?? 0);
+    if (!Number.isInteger(hour) || hour < 0) throw new AppError(400, 'Некоректна година прогнозу.');
+
+    const c = await ensureFresh();
+    // Кеш міг зʼявитись кілька годин тому: зсуваємо початок до поточної години
+    const base = Math.max(0, Math.floor((now() / 1000 - c.startSec) / 3600));
+    const idx = base + hour;
+    const available = c.hours - base;
+    if (idx >= c.hours) throw new AppError(400, `Прогноз доступний лише на ${available} год.`);
+
+    const time = new Date((c.startSec + idx * 3600) * 1000).toISOString();
+    return { c, hour, idx, meta: { hour, hours: available, time } };
+  }
+
   return {
     // hour = 0 — поточна година, 1 — наступна і т.д.
     async getWindFrame(rawHour) {
-      const hour = Number(rawHour ?? 0);
-      if (!Number.isInteger(hour) || hour < 0) throw new AppError(400, 'Некоректна година прогнозу.');
-
-      const c = await ensureFresh();
-      // Кеш міг зʼявитись кілька годин тому: зсуваємо початок до поточної години
-      const base = Math.max(0, Math.floor((now() / 1000 - c.startSec) / 3600));
-      const idx = base + hour;
-      const available = c.hours - base;
-      if (idx >= c.hours) throw new AppError(400, `Прогноз доступний лише на ${available} год.`);
-
+      const { c, idx, meta } = await locate(rawHour);
       const u = [];
       const v = [];
       for (let p = 0; p < c.speed.length; p++) {
@@ -114,8 +130,14 @@ export function createWindService({ client, now = Date.now, sleep = sleepMs, pau
         u.push(round2(wind.u));
         v.push(round2(wind.v));
       }
-      const timeIso = new Date((c.startSec + idx * 3600) * 1000).toISOString();
-      return { hour, hours: available, time: timeIso, data: buildVelocityData(u, v, timeIso) };
+      return { ...meta, data: buildVelocityData(u, v, meta.time) };
+    },
+
+    // Опади за годину, мм (Open-Meteo: сума за попередню годину). Немає даних → 0.
+    async getPrecipitationFrame(rawHour) {
+      const { c, idx, meta } = await locate(rawHour);
+      const values = c.precip.map((series) => round2(series[idx] ?? 0));
+      return { ...meta, grid: gridInfo(), values };
     },
   };
 }

@@ -83,6 +83,10 @@ h3 { margin: 0 0 12px; font-weight: 600; }
 }
 .timeline input[type="range"] { flex: 1; accent-color: var(--accent); }
 .hour-label { min-width: 9.5em; text-align: right; color: var(--muted); font-size: .9rem; text-transform: capitalize; }
+.legend { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: .8rem; color: var(--muted); }
+.legend[hidden] { display: none; }
+.legend-scale { display: flex; flex: 1; max-width: 420px; border-radius: 6px; overflow: hidden; }
+.legend-scale span { flex: 1; padding: 3px 0; text-align: center; color: #0b1220; font-weight: 600; }
 .map-hint { margin: 8px 0 0; color: var(--muted); font-size: .85rem; }
 
 @media (max-width: 480px) {

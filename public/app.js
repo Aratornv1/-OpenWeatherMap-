@@ -68,11 +68,12 @@ function renderForecast(days) {
 // Підложка — стандартні тайли OpenStreetMap (без ключа), у темній темі через CSS-фільтр.
 // Шари погоди бувають двох видів:
 //  • тайли-картинки з НАШОГО сервера (/api/tiles/...) — сервер додає API-ключ, у браузері його немає;
-//  • анімований вітер: сервер віддає сітку U/V (/api/wind?hour=N), а leaflet-velocity малює частинки.
-const WIND_ANIM = 'wind_anim';
+//  • «кадрові» шари з прогнозом по годинах (FRAME_LAYERS нижче): сервер віддає кадр на годину N,
+//    а браузер малює його (вітер — leaflet-velocity, опади — власний canvas-шар). Керує ними повзунок часу.
 const LAYER_HINTS = {
   wind_anim: 'Анімований вітер над Європою (Open-Meteo). Рухай повзунок або натисни ▶ — прогноз на 3 доби.',
-  precipitation_new: 'Опади: від світлого (слабкі) до насиченого (сильні).',
+  precip_grid: 'Опади за годину (прогноз Open-Meteo, сітка 2.5°). Рухай повзунок або натисни ▶ — прогноз на 3 доби.',
+  precipitation_new: 'Опади зараз (OpenWeatherMap): від світлого (слабкі) до насиченого (сильні).',
   clouds_new: 'Хмарність: чим біліше й щільніше, тим більше хмар.',
   wind_new: 'Швидкість вітру: чим насиченіший колір, тим сильніший вітер.',
   temp_new: 'Температура повітря: холодні тони → теплі.',
@@ -82,17 +83,39 @@ const LAYER_HINTS = {
 let map = null;
 let marker = null;
 let weatherLayer = null; // шар-тайли АБО velocity-шар (одночасно лише один)
-let activeLayer = WIND_ANIM;
+let activeLayer = 'wind_anim';
+
+// Для кожного кадрового шару: звідки брати кадр, як створити шар і як оновити його новим кадром.
+const FRAME_LAYERS = {
+  wind_anim: {
+    url: '/api/wind', title: 'вітер',
+    create: (body) => L.velocityLayer({
+      data: body.data,
+      displayValues: true,
+      displayOptions: {
+        velocityType: 'Вітер', position: 'bottomleft', emptyString: 'Немає даних',
+        angleConvention: 'meteoCW', speedUnit: 'ms', directionString: 'Звідки', speedString: 'Швидкість',
+      },
+      minVelocity: 0, maxVelocity: 15, velocityScale: 0.01, opacity: 0.9,
+    }),
+    update: (layer, body) => layer.setData(body.data),
+  },
+  precip_grid: {
+    url: '/api/precipitation', title: 'опади',
+    create: (body) => L.precipitationLayer(body),
+    update: (layer, body) => layer.setData(body),
+  },
+};
 
 function makeWeatherLayer(name) {
   return L.tileLayer(`/api/tiles/${name}/{z}/{x}/{y}.png`, { opacity: 0.8, maxNativeZoom: 10, maxZoom: 12 });
 }
 
-// ── Анімований вітер: повзунок часу ──
+// ── Кадрові шари (вітер, опади): повзунок часу ──
 const timeline = $('timeline');
 const hourSlider = $('hour');
 const playBtn = $('play');
-let windSeq = 0; // номер останнього запиту: відповіді-«запізненці» ігноруємо
+let frameSeq = 0; // номер останнього запиту: відповіді-«запізненці» ігноруємо
 let playTimer = null;
 
 const formatHour = (iso) =>
@@ -105,37 +128,41 @@ function stopPlay() {
   playBtn.setAttribute('aria-label', 'Відтворити');
 }
 
-async function loadWindFrame(hour) {
-  const seq = ++windSeq;
+// Легенда опадів: кольорові «плашки» зі шкали шару (стоп 0 мм — прозорий, його пропускаємо)
+function buildLegend() {
+  const stops = L.PrecipitationLayer?.STOPS;
+  if (!stops) return;
+  const scale = $('legend-scale');
+  stops.slice(1).forEach(([mm, r, g, b], i, arr) => {
+    const cell = document.createElement('span');
+    cell.style.background = `rgb(${r}, ${g}, ${b})`;
+    cell.textContent = i === arr.length - 1 ? `${mm}+` : String(mm);
+    scale.append(cell);
+  });
+}
+
+async function loadFrame(hour) {
+  const name = activeLayer;
+  const cfg = FRAME_LAYERS[name];
+  const seq = ++frameSeq;
   // Перший запит за ~3 години заповнює кеш на сервері (кілька порцій до Open-Meteo) — це займає кілька секунд
-  if (!weatherLayer) $('map-hint').textContent = 'Завантажую вітер… (перший раз це кілька секунд)';
+  if (!weatherLayer) $('map-hint').textContent = `Завантажую: ${cfg.title}… (перший раз це кілька секунд)`;
   try {
-    const res = await fetch(`/api/wind?hour=${hour}`);
+    const res = await fetch(`${cfg.url}?hour=${hour}`);
     const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Не вдалося завантажити вітер.');
-    if (seq !== windSeq || activeLayer !== WIND_ANIM || !map) return; // користувач вже перейшов далі
+    if (!res.ok) throw new Error(body.error || `Не вдалося завантажити: ${cfg.title}.`);
+    if (seq !== frameSeq || activeLayer !== name || !map) return; // користувач вже перейшов далі
 
     hourSlider.max = String(body.hours - 1);
     $('hour-label').textContent = formatHour(body.time);
 
-    if (weatherLayer) {
-      weatherLayer.setData(body.data);
-    } else {
-      weatherLayer = L.velocityLayer({
-        data: body.data,
-        displayValues: true,
-        displayOptions: {
-          velocityType: 'Вітер', position: 'bottomleft', emptyString: 'Немає даних',
-          angleConvention: 'meteoCW', speedUnit: 'ms', directionString: 'Звідки', speedString: 'Швидкість',
-        },
-        minVelocity: 0, maxVelocity: 15, velocityScale: 0.01, opacity: 0.9,
-      }).addTo(map);
-    }
-    $('map-hint').textContent = LAYER_HINTS[WIND_ANIM];
+    if (weatherLayer) cfg.update(weatherLayer, body);
+    else weatherLayer = cfg.create(body).addTo(map);
+    $('map-hint').textContent = LAYER_HINTS[name];
   } catch (err) {
-    if (seq !== windSeq) return;
+    if (seq !== frameSeq) return;
     stopPlay();
-    $('map-hint').textContent = `Вітер: ${err.message}`;
+    $('map-hint').textContent = `${cfg.title[0].toUpperCase()}${cfg.title.slice(1)}: ${err.message}`;
   }
 }
 
@@ -143,22 +170,23 @@ function setLayer(name) {
   activeLayer = name;
   for (const btn of $('layers').children) btn.classList.toggle('active', btn.dataset.layer === name);
   $('map-hint').textContent = LAYER_HINTS[name];
-  const isWind = name === WIND_ANIM;
-  timeline.hidden = !isWind;
+  const isFrame = name in FRAME_LAYERS;
+  timeline.hidden = !isFrame;
+  $('legend').hidden = name !== 'precip_grid';
   stopPlay();
-  windSeq++; // скасовує відповіді попередніх запитів вітру
+  frameSeq++; // скасовує відповіді попередніх запитів
   if (!map) return;
 
   if (weatherLayer) map.removeLayer(weatherLayer);
   weatherLayer = null;
-  if (isWind) loadWindFrame(Number(hourSlider.value));
+  if (isFrame) loadFrame(Number(hourSlider.value));
   else weatherLayer = makeWeatherLayer(name).addTo(map);
 }
 
 let sliderDebounce = null;
 hourSlider.addEventListener('input', () => {
   clearTimeout(sliderDebounce); // не засипаємо сервер запитами, поки рухаєш повзунок
-  sliderDebounce = setTimeout(() => loadWindFrame(Number(hourSlider.value)), 200);
+  sliderDebounce = setTimeout(() => loadFrame(Number(hourSlider.value)), 200);
 });
 
 playBtn.addEventListener('click', () => {
@@ -168,7 +196,7 @@ playBtn.addEventListener('click', () => {
   playTimer = setInterval(() => {
     const next = (Number(hourSlider.value) + 1) % (Number(hourSlider.max) + 1);
     hourSlider.value = String(next);
-    loadWindFrame(next);
+    loadFrame(next);
   }, 1000);
 });
 
@@ -198,6 +226,7 @@ $('layers').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-layer]');
   if (btn) setLayer(btn.dataset.layer);
 });
+buildLegend();
 setLayer(activeLayer);
 
 // Список країн Європи приходить із сервера (єдине джерело правди). Якщо не вдалось — лишається «Будь-яка країна».

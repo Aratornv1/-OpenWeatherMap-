@@ -25,11 +25,13 @@ export function createWeatherController({ weatherService }) {
   };
 }
 
-// GET /api/wind?hour=N → { hour, hours, time, data: [U, V] } для анімації вітру
-export function createWindController({ windService }) {
-  return async function getWind(req, res, url) {
+// Обробник кадру по сітці: GET ...?hour=N → JSON. getFrame — функція сервісу (getWindFrame, getPrecipitationFrame):
+//   /api/wind          → { hour, hours, time, data: [U, V] }   для анімації вітру
+//   /api/precipitation → { hour, hours, time, grid, values }   для шару опадів
+export function createFrameController(getFrame) {
+  return async function handleFrame(req, res, url) {
     try {
-      sendJson(res, 200, await windService.getWindFrame(url.searchParams.get('hour')));
+      sendJson(res, 200, await getFrame(url.searchParams.get('hour')));
     } catch (err) {
       sendError(res, err);
     }

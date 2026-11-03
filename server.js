@@ -8,11 +8,11 @@ import {
   createWeatherController,
   createTileController,
   createCountriesController,
-  createWindController,
+  createFrameController,
   matchTileRoute,
 } from './src/controllers/weatherController.js';
 import { createOpenMeteoClient } from './src/clients/openMeteoClient.js';
-import { createWindService } from './src/services/windService.js';
+import { createGridService } from './src/services/gridService.js';
 import { createStaticHandler } from './src/staticHandler.js';
 
 let config;
@@ -29,8 +29,9 @@ const weatherService = createWeatherService({ client });
 const getWeather = createWeatherController({ weatherService });
 const getTile = createTileController({ weatherService });
 const getCountries = createCountriesController({ weatherService });
-const windService = createWindService({ client: createOpenMeteoClient() });
-const getWind = createWindController({ windService });
+const gridService = createGridService({ client: createOpenMeteoClient() });
+const getWind = createFrameController(gridService.getWindFrame);
+const getPrecipitation = createFrameController(gridService.getPrecipitationFrame);
 const serveStatic = createStaticHandler(config.publicDir);
 
 http
@@ -39,6 +40,7 @@ http
     if (req.method !== 'GET') return void res.writeHead(405).end();
     if (url.pathname === '/api/weather') return void getWeather(req, res, url);
     if (url.pathname === '/api/wind') return void getWind(req, res, url);
+    if (url.pathname === '/api/precipitation') return void getPrecipitation(req, res, url);
     if (url.pathname === '/api/countries') return void getCountries(req, res);
     const tile = matchTileRoute(url.pathname);
     if (tile) return void getTile(req, res, tile);
