@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Weather Dashboard: розбір коду</title>
+<title>Weather Dashboard: розбір ООП-версії</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -136,20 +136,19 @@ details .inner { padding: 12px 14px 4px; }
 <nav class="toc" aria-label="Зміст">
   <p>Зміст</p>
   <ol>
-    <li><a href="#big-picture">Загальна картина</a></li>
-    <li><a href="#files">Карта файлів</a></li>
+    <li><a href="#big-picture">Що змінилось і навіщо</a></li>
+    <li><a href="#map">Карта класів</a></li>
+    <li><a href="#concepts">ООП-ідеї на цьому коді</a></li>
     <li><a href="#request">Шлях одного запиту</a></li>
-    <li><a href="#server">server.js</a></li>
-    <li><a href="#controller">Controller</a></li>
-    <li><a href="#service">Service</a></li>
-    <li><a href="#client">Client</a></li>
-    <li><a href="#forecast">Прогноз на 3 дні</a></li>
-    <li><a href="#map">Карта і шари</a></li>
-    <li><a href="#wind">Вітер і опади по сітці</a></li>
-    <li><a href="#countries">Вибір країни</a></li>
-    <li><a href="#frontend">Фронтенд</a></li>
+    <li><a href="#errors">Помилки й конфіг</a></li>
+    <li><a href="#domain">Доменні класи</a></li>
+    <li><a href="#clients">Клієнти й наслідування</a></li>
+    <li><a href="#services">Сервіси</a></li>
+    <li><a href="#http">HTTP-шар і composition root</a></li>
+    <li><a href="#frontend">Фронтенд на класах</a></li>
+    <li><a href="#changes">Що змінилось у поведінці</a></li>
+    <li><a href="#before">Було: стара версія для порівняння</a></li>
     <li><a href="#tests">Тести</a></li>
-    <li><a href="#key">Ключ і безпека</a></li>
     <li><a href="#exercises">Вправи</a></li>
     <li><a href="#status">Що перевірено</a></li>
   </ol>
@@ -157,573 +156,1731 @@ details .inner { padding: 12px 14px 4px; }
 
 <main>
 <header class="top">
-  <span class="tag">roadmap task/weather-dashboard</span>
-  <h1>Weather Dashboard: розбір коду</h1>
-  <p>Вибір країни Європи і міста, поточна погода, прогноз на 3 дні та карта з шарами погоди й анімованим вітром. Сервер на Node.js без npm-залежностей ділиться на три шари: Controller, Service, Client. Нижче видно, що робить кожен файл і чому код розкладено саме так.</p>
+  <span class="tag">roadmap task/weather-dashboard · гілка refactor-oop</span>
+  <h1>Weather Dashboard: розбір ООП-версії</h1>
+  <p>Сервер погоди на чистому Node.js і Leaflet-фронтенд, переписані з функцій-фабрик на класи: доменні value object-и, абстрактні клієнти, контролери й джерела шарів карти, ієрархія помилок та ін'єкція залежностей. Нижче видно, що робить кожен клас, чому код розкладено саме так і чим перевірено, що поведінка не змінилась.</p>
   <div class="meta">
-    <span class="chip">Node.js ≥ 20.12</span>
-    <span class="chip">0 npm-залежностей</span>
-    <span class="chip">OpenWeatherMap 2.5</span>
-    <span class="chip">Open-Meteo</span>
-    <span class="chip">Leaflet 1.9</span>
+    <span class="chip">Node.js ESM</span>
+    <span class="chip">приватні поля #</span>
+    <span class="chip">abstract + extends</span>
+    <span class="chip">toJSON</span>
     <span class="chip">node:test</span>
+    <span class="chip">100 тестів</span>
+    <span class="chip">Leaflet</span>
   </div>
 </header>
 
 <!-- 1 -->
 <section id="big-picture">
-  <h2>1. Загальна картина</h2>
-  <p>Браузер ніколи не звертається до OpenWeatherMap напряму. Він питає наш сервер, а сервер додає API-ключ і сам ходить до зовнішнього API. Так ключ лишається на сервері.</p>
-
-  <div class="flow" role="img" aria-label="Схема: браузер, Controller, Service, Client, OpenWeatherMap">
-    <svg viewBox="0 0 760 150" xmlns="http://www.w3.org/2000/svg">
-      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker></defs>
-      <rect class="box" x="4" y="40" width="120" height="58" rx="8"/>
-      <text class="lbl" x="64" y="64" text-anchor="middle">Браузер</text>
-      <text class="sub" x="64" y="82" text-anchor="middle">public/app.js</text>
-
-      <rect class="box hot" x="168" y="40" width="130" height="58" rx="8"/>
-      <text class="lbl" x="233" y="64" text-anchor="middle">Controller</text>
-      <text class="sub" x="233" y="82" text-anchor="middle">HTTP</text>
-
-      <rect class="box hot" x="342" y="40" width="130" height="58" rx="8"/>
-      <text class="lbl" x="407" y="64" text-anchor="middle">Service</text>
-      <text class="sub" x="407" y="82" text-anchor="middle">логіка, DTO</text>
-
-      <rect class="box hot" x="516" y="40" width="110" height="58" rx="8"/>
-      <text class="lbl" x="571" y="64" text-anchor="middle">Client</text>
-      <text class="sub" x="571" y="82" text-anchor="middle">Adapter</text>
-
-      <rect class="box" x="660" y="40" width="96" height="58" rx="8"/>
-      <text class="lbl" x="708" y="64" text-anchor="middle">OpenWeather</text>
-      <text class="sub" x="708" y="82" text-anchor="middle">Map</text>
-
-      <path class="arrow" d="M124 69H166" marker-end="url(#ah)"/>
-      <path class="arrow" d="M298 69H340" marker-end="url(#ah)"/>
-      <path class="arrow" d="M472 69H514" marker-end="url(#ah)"/>
-      <path class="arrow" d="M626 69H658" marker-end="url(#ah)"/>
-
-      <text class="cap" x="64" y="124" text-anchor="middle">GET /api/weather?city=</text>
-      <text class="cap" x="233" y="124" text-anchor="middle">?city= → рядок</text>
-      <text class="cap" x="407" y="124" text-anchor="middle">рядок → DTO</text>
-      <text class="cap" x="571" y="124" text-anchor="middle">+ appid, units, lang</text>
-    </svg>
-  </div>
-
-  <p>Залежності йдуть тільки вправо. Controller викликає Service, Service викликає Client. Жоден шар не знає про те, що лівіше від нього.</p>
+  <h2>1. Що змінилось і навіщо</h2>
+  <p>Раніше кожен шар був набором <strong>функцій-фабрик</strong>: <code>createWeatherService()</code>, <code>createGridService()</code>, <code>createOpenWeatherClient()</code>, <code>createWeatherController()</code>. Усередині жили замикання з прихованими змінними, а дані між шарами ходили звичайними об'єктами. Валідація (<code>parseTile</code>, перевірка міста, країни, години) розсипана по сервісах. Фронтенд був одним файлом із глобальними змінними (<code>map</code>, <code>marker</code>, <code>weatherLayer</code>, <code>frameSeq</code>…). Тепер усюди <strong>класи</strong>, кожен із однією роллю. API не змінилось: 37 з 41 запиту до старої й нової версії дають <strong>байт у байт однакові</strong> відповіді, а решта чотири відрізняються лише закінченнями рядків статичних файлів чи навмисно переписаним <code>app.js</code> (див. «Що перевірено»).</p>
 
   <div class="tablewrap"><table>
-    <thead><tr><th>Шар</th><th>Відповідає за</th><th>Не знає про</th></tr></thead>
+    <thead><tr><th>Було</th><th>Стало</th><th>Що дає</th></tr></thead>
     <tbody>
-      <tr><td>Controller</td><td>прочитати <code>?city=</code>, віддати JSON і статус</td><td>бізнес-правила</td></tr>
-      <tr><td>Service</td><td>валідація, мапінг у свою структуру, прогноз на 3 дні</td><td>HTTP, URL, ключ</td></tr>
-      <tr><td>Client</td><td>запити до зовнішнього API, коди 401/404/429</td><td>що робити з даними</td></tr>
+      <tr><td><code>createWeatherService({ client })</code></td><td><code>WeatherService</code> + доменні класи <code>CityQuery</code>, <code>TileRequest</code>, <code>ForecastBuilder</code>, <code>Weather</code></td><td>валідація й мапінг живуть у типах, а не в довгому методі</td></tr>
+      <tr><td><code>createGridService()</code>: кеш і запити в одному замиканні, функції <code>toUV</code>, <code>gridPoints</code>, <code>buildVelocityData</code></td><td><code>GridService</code> + <code>Grid</code>, <code>GridSnapshot</code>, <code>WindVector</code>, <code>ForecastHour</code>, <code>Frame</code> → <code>WindFrame</code> / <code>PrecipitationFrame</code></td><td>кожне поняття (сітка, знімок кешу, вектор вітру, кадр) — окремий тестований клас</td></tr>
+      <tr><td>два клієнти, у кожному своя копія «зробити запит → розібрати помилку»</td><td>абстрактний <code>ApiClient</code> + <code>OpenWeatherClient</code>, <code>OpenMeteoClient</code></td><td>спільний алгоритм у предку (шаблонний метод), різне — у нащадках</td></tr>
+      <tr><td><code>new AppError(502, 'текст')</code> — статус передавали руками</td><td><code>AppError</code> → <code>ValidationError</code> 400, <code>NotFoundError</code> 404, <code>RateLimitError</code> 429, <code>UpstreamError</code> 502, окремо <code>ConfigError</code></td><td>тип помилки каже, що сталось; статус вшито в клас</td></tr>
+      <tr><td>чотири функції-контролери з однаковим <code>try/catch</code> і <code>sendError</code></td><td>абстрактний <code>Controller</code> + 4 нащадки</td><td>дублювання зникло: <code>handle()</code> у предку, нащадок пише лише <code>respond()</code></td></tr>
+      <tr><td>ланцюжок <code>if (url.pathname === …)</code> у <code>server.js</code></td><td><code>Router</code>, <code>StaticHandler</code>, <code>WeatherApp</code></td><td>маршрути — дані, а не код; обробник — будь-який об'єкт із <code>handle</code></td></tr>
+      <tr><td><code>loadConfig()</code></td><td><code>AppConfig.fromEnv()</code> / <code>load()</code></td><td>чиста функція від <code>env</code> легко тестується</td></tr>
+      <tr><td><code>public/app.js</code>: 294 рядки, глобальні змінні й функції</td><td>14 класів: <code>WeatherApi</code>, <code>WeatherView</code>, <code>Timeline</code>, <code>WeatherMap</code>, <code>LayerSource</code> і нащадки…</td><td>шар карти додається новим класом, а не новою гілкою <code>if</code></td></tr>
     </tbody>
   </table></div>
 
-  <p>Тепер у проєкті <strong>два зовнішні джерела</strong>: OpenWeatherMap (погода, прогноз, картинки-тайли) і Open-Meteo (сітка вітру для анімації). Кожне має свого Client, а Service нічого не знає про їхні URL. Напряму браузер звертається лише до CDN (скрипти Leaflet) і до OpenStreetMap (підкладка карти): ключів там немає.</p>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Що показуємо</th><th>Звідки</th><th>Шлях у нашому коді</th></tr></thead>
-    <tbody>
-      <tr><td>Поточна погода і прогноз</td><td>OpenWeatherMap</td><td><code>/api/weather</code> → <code>weatherService</code> → <code>openWeatherClient</code></td></tr>
-      <tr><td>Шари карти (опади, хмари, температура, тиск, вітер у кольорах)</td><td>OpenWeatherMap, тайли</td><td><code>/api/tiles/…</code> → <code>weatherService.getMapTile</code> → <code>openWeatherClient.getMapTile</code></td></tr>
-      <tr><td>Анімований вітер</td><td>Open-Meteo</td><td><code>/api/wind</code> → <code>gridService.getWindFrame</code> → <code>openMeteoClient</code></td></tr>
-      <tr><td>Опади (прогноз)</td><td>Open-Meteo</td><td><code>/api/precipitation</code> → <code>gridService.getPrecipitationFrame</code> → <code>openMeteoClient</code></td></tr>
-      <tr><td>Список країн Європи</td><td>наш код</td><td><code>/api/countries</code> → <code>weatherService.getCountries</code></td></tr>
-    </tbody>
-  </table></div>
+  <div class="note"><strong class="t">Чи завжди класи кращі за функції?</strong>
+    <p>Ні, і стара версія працювала. Це навчальна переробка: вона показує інкапсуляцію, успадкування, поліморфізм і ін'єкцію залежностей на справжньому коді. У кожному розділі нижче сказано, що саме це дає.</p></div>
 </section>
 
 <!-- 2 -->
-<section id="files">
-  <h2>2. Карта файлів</h2>
+<section id="map">
+  <h2>2. Карта класів</h2>
+  <div class="file"><div class="name"><b>Бекенд: діаграма залежностей</b><span>стрілка = «використовує»</span></div>
+<pre><code>server.js  (composition root)
+  └─ WeatherApp ──► Router
+                      ├─ WeatherController ─┐
+                      ├─ CountriesController├─► WeatherService ──► OpenWeatherClient ─┐
+                      ├─ TileController ────┘     │   (CityQuery, TileRequest,      ├─ extends ApiClient
+                      ├─ FrameController ──► GridService ──► OpenMeteoClient ────────┘
+                      └─ StaticHandler (fallback)   │   (Grid, GridSnapshot, WindVector, ForecastHour)
+                                                    └─► WindFrame / PrecipitationFrame (extends Frame)
+
+WeatherService: CityQuery, TileRequest, CountryRegistry, ForecastBuilder → Weather, DailyForecast, Coordinate
+errors.js:      AppError ◄─ ValidationError | NotFoundError | RateLimitError | UpstreamError   (ConfigError окремо)</code></pre></div>
+
+  <div class="file"><div class="name"><b>Фронтенд: класи в public/app.js</b><span>наслідування й складання</span></div>
+<pre><code>App
+ ├─ WeatherApi, WeatherView, SearchHistory, CountrySelect
+ └─ WeatherMap ── Timeline, LayerSwitcher, Legend
+        └─ sources: LayerSource  (абстрактний)
+                     ├─ TileSource
+                     └─ FrameSource  (абстрактний)
+                          ├─ WindSource
+                          └─ PrecipitationSource</code></pre></div>
+
   <div class="tablewrap"><table>
-    <thead><tr><th>Файл</th><th>Роль</th></tr></thead>
+    <thead><tr><th>Папка / файл</th><th>Що</th></tr></thead>
     <tbody>
-      <tr><td><code>server.js</code></td><td>Composition root: створює об'єкти, передає залежності, запускає HTTP-сервер</td></tr>
-      <tr><td><code>src/config.js</code></td><td>Читає <code>.env</code>, перевіряє, що ключ є</td></tr>
-      <tr><td><code>src/errors.js</code></td><td><code>AppError(status, message)</code>: помилка зі статусом</td></tr>
-      <tr><td><code>src/controllers/weatherController.js</code></td><td>Обробники <code>/api/weather</code>, <code>/api/tiles</code>, <code>/api/countries</code>, <code>/api/wind</code>; помилки → відповіді</td></tr>
-      <tr><td><code>src/services/weatherService.js</code></td><td>Бізнес-логіка, <code>buildDailyForecast</code>, валідація країни й тайла</td></tr>
-      <tr><td><code>src/services/gridService.js</code></td><td>Сітка Європи, один кеш для вітру й опадів, перетворення швидкість/напрямок → U/V</td></tr>
-      <tr><td><code>src/clients/openWeatherClient.js</code></td><td>Єдине місце, що знає OpenWeatherMap (погода й тайли)</td></tr>
-      <tr><td><code>src/clients/openMeteoClient.js</code></td><td>Єдине місце, що знає Open-Meteo (вітер по сітці)</td></tr>
-      <tr><td><code>src/data/europeCountries.js</code></td><td>45 країн Європи: код ISO → назва, єдине джерело правди</td></tr>
-      <tr><td><code>src/staticHandler.js</code></td><td>Роздає <code>public/</code> із захистом від <code>../</code></td></tr>
-      <tr><td><code>public/index.html, style.css, app.js</code></td><td>Інтерфейс: форма, картки, карта, повзунок часу, легенда</td></tr>
-      <tr><td><code>public/precipitationLayer.js</code></td><td>Власний canvas-шар Leaflet для опадів (інтерполяція між вузлами сітки)</td></tr>
-      <tr><td><code>test/weatherService.test.js</code></td><td>9 тестів: прогноз, DTO, країни, тайли</td></tr>
-      <tr><td><code>test/gridService.test.js</code></td><td>11 тестів сервісу сітки (вітер і опади) без мережі</td></tr>
-      <tr><td><code>.env</code> / <code>.env.example</code></td><td>Ключ (у git не потрапляє) / шаблон без ключа</td></tr>
+      <tr><td><code>server.js</code></td><td>точка входу, composition root: створює й з'єднує об'єкти</td></tr>
+      <tr><td><code>src/http/</code>: <code>Router</code>, <code>StaticHandler</code>, <code>WeatherApp</code></td><td>HTTP-шар: маршрути, статика, сервер</td></tr>
+      <tr><td><code>src/controllers/</code>: <code>Controller</code> + 4 нащадки</td><td>читають запит, викликають сервіс, пишуть відповідь</td></tr>
+      <tr><td><code>src/services/</code>: <code>WeatherService</code>, <code>GridService</code></td><td>логіка: погода й прогноз; кеш сітки й кадри</td></tr>
+      <tr><td><code>src/clients/</code>: <code>ApiClient</code>, <code>OpenWeatherClient</code>, <code>OpenMeteoClient</code></td><td>розмова із зовнішніми API</td></tr>
+      <tr><td><code>src/domain/</code>: 12 файлів</td><td>доменні класи: value object-и, знімок сітки, кадри, DTO</td></tr>
+      <tr><td><code>src/AppConfig.js</code>, <code>src/errors.js</code>, <code>src/data/europeCountries.js</code></td><td>конфіг, помилки, дані країн</td></tr>
+      <tr><td><code>public/app.js</code>, <code>public/precipitationLayer.js</code></td><td>фронтенд (<code>precipitationLayer.js</code> уже був класом Leaflet і не змінювався)</td></tr>
     </tbody>
   </table></div>
-  <div class="note"><strong class="t">З чого починати читання</strong><p>Порядок: <code>server.js</code> → Controller → Service → Client → тест. Так видно, як із запиту складається відповідь.</p></div>
 </section>
 
 <!-- 3 -->
-<section id="request">
-  <h2>3. Шлях одного запиту</h2>
-  <p>Користувач вводить <code>Kyiv</code> і натискає «Шукати».</p>
-  <ol class="steps">
-    <li><div><code>app.js</code> робить <code>fetch('/api/weather?city=Kyiv&amp;country=UA')</code>. Параметри збирає <code>URLSearchParams</code>, тож пробіли й кирилиця не ламають URL.</div></li>
-    <li><div><code>server.js</code> бачить шлях <code>/api/weather</code> і передає запит у <code>getWeather</code> (Controller). Інші шляхи йдуть у <code>serveStatic</code>.</div></li>
-    <li><div>Controller бере <code>city</code> і <code>country</code> з <code>url.searchParams</code> і викликає <code>weatherService.getWeather(city, country)</code>.</div></li>
-    <li><div>Service обрізає пробіли, перевіряє довжину (1–100 символів) і те, що код країни (якщо є) входить у наш список із 45 країн Європи, потім через <code>Promise.all</code> запускає <strong>два запити одночасно</strong>: поточна погода і прогноз.</div></li>
-    <li><div>Client формує URL (<code>q=Kyiv,UA</code>, <code>appid</code>, <code>units=metric</code>, <code>lang=ua</code>), робить <code>fetch</code>, а за статусом відповіді кидає <code>AppError</code> або повертає JSON.</div></li>
-    <li><div>Service перетворює два сирі JSON в одну свою структуру (DTO) і викликає <code>buildDailyForecast</code>.</div></li>
-    <li><div>Controller віддає DTO зі статусом 200. Якщо хтось кинув <code>AppError</code>, він віддає <code>{ error }</code> з тим статусом, який у помилки.</div></li>
-    <li><div><code>app.js</code> малює картку «зараз», три картки прогнозу і карту з маркером міста (координати приходять у полі <code>coord</code>).</div></li>
-  </ol>
+<section id="concepts">
+  <h2>3. ООП-ідеї на цьому коді</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Ідея</th><th>Де</th><th>Простими словами</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Інкапсуляція</strong></td><td><code>#apiKey</code> у <code>OpenWeatherClient</code>, <code>#snapshot</code> / <code>#inflight</code> у <code>GridService</code>, <code>#names</code> у <code>CountryRegistry</code>; на фронтенді <code>#map</code>, <code>#layer</code>, <code>#frameSeq</code></td><td>внутрішній стан сховано справжніми приватними полями <code>#</code>; ззовні лише методи. Ключ API не потрапить у лог чи JSON випадково.</td></tr>
+      <tr><td><strong>Наслідування</strong></td><td><code>ApiClient</code> → 2 клієнти; <code>Controller</code> → 4 контролери; <code>Frame</code> → <code>WindFrame</code>, <code>PrecipitationFrame</code>; <code>LayerSource</code> → <code>TileSource</code>, <code>FrameSource</code> → …; <code>AppError</code> → 4 помилки</td><td>спільне живе в предку, нащадок додає лише своє.</td></tr>
+      <tr><td><strong>Абстрактний клас</strong></td><td><code>ApiClient</code>, <code>Controller</code>, <code>Frame</code>, <code>LayerSource</code>: у конструкторі <code>if (new.target === Клас) throw</code></td><td>JavaScript не має слова <code>abstract</code>, тому заборону створювати «заготовку» робимо перевіркою. Тест це підтверджує.</td></tr>
+      <tr><td><strong>Шаблонний метод</strong></td><td><code>ApiClient.request()</code>, <code>Controller.handle()</code></td><td>предок задає порядок кроків, а нащадок перевизначає лише окремий крок (<code>errorForStatus</code>, <code>respond</code>).</td></tr>
+      <tr><td><strong>Поліморфізм</strong></td><td><code>JSON.stringify(frame)</code> викликає <code>toJSON()</code> нащадка; <code>Router</code> викликає <code>handle()</code> і контролера, і <code>StaticHandler</code>; <code>WeatherMap</code> викликає <code>source.createLayer()</code>, не знаючи, вітер це чи тайли</td><td>один виклик — різна поведінка залежно від того, який об'єкт перед нами. Місце, що викликає, не перевіряє тип.</td></tr>
+      <tr><td><strong>Value object</strong></td><td><code>Coordinate</code>, <code>CityQuery</code>, <code>TileRequest</code>, <code>ForecastHour</code>, <code>WindVector</code>, <code>Grid</code>: <code>Object.freeze(this)</code></td><td>маленький незмінний об'єкт, який перевіряється при створенні (<code>parse</code>): якщо він існує, він правильний.</td></tr>
+      <tr><td><strong>Композиція та ін'єкція залежностей</strong></td><td><code>new WeatherService({ client })</code>, <code>new GridService({ client, grid, now, sleep })</code>, <code>new Router({ fallback })</code>, <code>new Timeline({ onChange })</code></td><td>об'єкт отримує потрібні частини ззовні, а не створює їх сам. У тестах підставляються фейки, а на фронтенді <code>Timeline</code> не знає про карту.</td></tr>
+      <tr><td><strong>Статичні фабрики</strong></td><td><code>CityQuery.parse</code>, <code>Weather.fromApi</code>, <code>WindFrame.of</code>, <code>CountryRegistry.europe</code>, <code>WindVector.fromMeteo</code></td><td>осмислена назва замість «голого» <code>new</code> з десятком аргументів.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note warn"><strong class="t">Приватні поля <code>#</code> і тести</strong>
+    <p>До <code>#snapshot</code> з тесту не дістатись, і це правильно: тести перевіряють <em>поведінку</em> (скільки запитів пішло в клієнт, що повернув сервіс), а не внутрішні змінні. Якщо переписати кеш інакше, тести лишаться зеленими.</p></div>
 </section>
 
 <!-- 4 -->
-<section id="server">
-  <h2>4. server.js: збирання застосунку</h2>
-  <div class="file"><div class="name"><b>server.js</b><span>composition root</span></div>
-<pre><code>// Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо шари між собою.
-//   HTTP → controller → service → client → OpenWeatherMap
-import http from 'node:http';
-import { loadConfig } from './src/config.js';
-import { createOpenWeatherClient } from './src/clients/openWeatherClient.js';
-import { createWeatherService } from './src/services/weatherService.js';
-import {
-  createWeatherController,
-  createTileController,
-  createCountriesController,
-  createFrameController,
-  matchTileRoute,
-} from './src/controllers/weatherController.js';
-import { createOpenMeteoClient } from './src/clients/openMeteoClient.js';
-import { createGridService } from './src/services/gridService.js';
-import { createStaticHandler } from './src/staticHandler.js';
+<section id="request">
+  <h2>4. Шлях одного запиту</h2>
+  <p>Запит: <code>GET /api/weather?city=kyiv&amp;country=ua</code>.</p>
+  <ol class="steps">
+    <li><div><code>WeatherApp</code> приймає з'єднання й віддає <code>req</code>, <code>res</code> у <code>Router.handle()</code>.</div></li>
+    <li><div><code>Router</code> розбирає URL (помилка розбору → 400), не-<code>GET</code> відсікає (405), за <code>pathname</code> знаходить контролер. Нічого не знайшлося — віддає запит <code>StaticHandler</code>.</div></li>
+    <li><div><code>Controller.handle()</code> викликає <code>respond()</code> нащадка у <code>try/catch</code>. <code>WeatherController.respond()</code> бере <code>city</code> і <code>country</code> з query і кличе <code>weatherService.getWeather()</code>.</div></li>
+    <li><div><code>WeatherService</code> створює <code>CityQuery.parse('kyiv', 'ua', countries)</code>: назва обрізана, країна → <code>UA</code>, невідома → <code>ValidationError</code> (400).</div></li>
+    <li><div>Два запити паралельно (<code>Promise.all</code>): <code>client.getCurrent(query)</code> і <code>client.getForecast(query)</code>. <code>OpenWeatherClient</code> збирає URL із ключем, а <code>ApiClient.request()</code> виконує <code>fetch</code> і перетворює збій на <code>UpstreamError</code> чи статус на помилку потрібного типу.</div></li>
+    <li><div><code>ForecastBuilder.build()</code> групує 40 записів по днях міста й повертає 3 <code>DailyForecast</code>; <code>Weather.fromApi()</code> перекладає чужий формат у наш.</div></li>
+    <li><div><code>Controller.sendJson()</code> робить <code>JSON.stringify(weather)</code>: той викликає <code>Weather.toJSON()</code>, який фіксує порядок полів відповіді.</div></li>
+    <li><div>Помилка на будь-якому кроці потрапляє в <code>Controller.sendError()</code>: <code>AppError</code> → статус із класу, усе інше → 500 без деталей.</div></li>
+  </ol>
+  <p>Кадр вітру (<code>GET /api/wind?hour=5</code>) іде тим самим шляхом, але через <code>FrameController</code> і <code>GridService.getWindFrame()</code>. Він бере <code>ForecastHour.parse</code>, свіжий <code>GridSnapshot</code> (або завантажує сітку, див. розділ 8), знаходить індекс години й збирає <code>WindFrame</code>.</p>
+</section>
+
+<!-- 5 -->
+<section id="errors">
+  <h2>5. Помилки й конфіг</h2>
+  <div class="file"><div class="name"><b>src/errors.js</b><span>наслідування</span></div>
+<pre><code>// Ієрархія помилок. Сервіси й клієнти кидають їх, а контролер перетворює на HTTP-відповідь:
+// статус уже вшито в клас, тож нижні шари не знають про HTTP-відповіді.
+//
+//   Error
+//    ├─ ConfigError              — неправильні налаштування (лише при старті, не HTTP)
+//    └─ AppError (status)
+//        ├─ ValidationError  400 — поганий ввід користувача
+//        ├─ NotFoundError    404 — місто чи тайл не знайдено
+//        ├─ RateLimitError   429 — вичерпано ліміт запитів
+//        └─ UpstreamError    502 — проблема на боці зовнішнього API
+export class AppError extends Error {
+  constructor(message, status, options) {
+    super(message, options);
+    this.name = new.target.name; // імʼя реального класу: ValidationError, UpstreamError, ...
+    this.status = status;
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(message, options) {
+    super(message, 400, options);
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message, options) {
+    super(message, 404, options);
+  }
+}
+
+export class RateLimitError extends AppError {
+  constructor(message, options) {
+    super(message, 429, options);
+  }
+}
+
+export class UpstreamError extends AppError {
+  constructor(message, options) {
+    super(message, 502, options);
+  }
+}
+
+export class ConfigError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = 'ConfigError';
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/controllers/Controller.js</b><span>єдине місце відповідей про помилки + шаблонний метод</span></div>
+<pre><code>// ШАР 1 — базовий Controller (HTTP-шар) і «шаблонний метод»: handle() задає порядок (спробувати → помилка у відповідь),
+// а нащадок пише лише respond(): що саме відповісти. Жодної бізнес-логіки: «HTTP in → service → HTTP out».
+import { AppError } from '../errors.js';
+
+export class Controller {
+  constructor() {
+    if (new.target === Controller) throw new TypeError('Controller is abstract: use a subclass');
+  }
+
+  // ctx = { url, params }: url — розібраний URL запиту, params — групи з регулярного виразу маршруту
+  async handle(req, res, ctx) {
+    try {
+      await this.respond(req, res, ctx);
+    } catch (err) {
+      this.sendError(res, err);
+    }
+  }
+
+  // Те, що має написати нащадок
+  async respond() {
+    throw new Error(`${this.constructor.name} must implement respond()`);
+  }
+
+  sendJson(res, status, body) {
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(body)); // для обʼєктів із toJSON (Weather, Frame…) форму визначає сам обʼєкт
+  }
+
+  sendError(res, err) {
+    if (err instanceof AppError) return this.sendJson(res, err.status, { error: err.message });
+    console.error(err); // непередбачена помилка — деталі лише в лог, клієнту загальне повідомлення
+    this.sendJson(res, 500, { error: 'Внутрішня помилка сервера.' });
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/AppConfig.js</b><span>конфіг як клас</span></div>
+<pre><code>// Налаштування застосунку. Створюються лише через fromEnv/load і перевіряються при створенні:
+// немає ключа — програма не стартує, а не ламається пізніше з 401.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ConfigError } from './errors.js';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+export class AppConfig {
+  static PLACEHOLDER_KEY = 'your_api_key_here'; // значення з .env.example
+
+  // Чиста функція від env: у тестах передаємо свій обʼєкт і не чіпаємо process.env
+  static fromEnv(env = process.env, publicDir = path.join(ROOT, 'public')) {
+    const apiKey = env.OPENWEATHER_API_KEY;
+    if (!apiKey || apiKey === AppConfig.PLACEHOLDER_KEY) {
+      throw new ConfigError('Немає OPENWEATHER_API_KEY. Скопіюй .env.example у .env і встав свій ключ.');
+    }
+    return new AppConfig({ apiKey, port: Number(env.PORT) || 3000, publicDir });
+  }
+
+  // Для запуску: спершу підвантажує .env (необовʼязковий), потім читає env
+  static load() {
+    try {
+      process.loadEnvFile(path.join(ROOT, '.env')); // Node 20.12+
+    } catch {
+      // .env немає — залишаються змінні середовища системи
+    }
+    return AppConfig.fromEnv();
+  }
+
+  constructor({ apiKey, port, publicDir }) {
+    this.apiKey = apiKey;
+    this.port = port;
+    this.publicDir = publicDir;
+  }
+}</code></pre></div>
+  <ul>
+    <li><strong>Статус вшито в клас.</strong> Хто кидає <code>new NotFoundError('…')</code>, не думає про 404. Раніше кожне місце писало <code>new AppError(404, '…')</code>, і статус легко було переплутати.</li>
+    <li><strong><code>this.name = new.target.name</code></strong> дає помилці ім'я реального класу (<code>ValidationError</code>, а не <code>Error</code>) без повторення в кожному нащадку.</li>
+    <li><strong><code>cause</code></strong>: <code>UpstreamError('…', { cause: err })</code> зберігає початкову мережеву помилку для логів, а клієнту йде загальний текст.</li>
+    <li><strong><code>ConfigError</code> — не <code>AppError</code></strong>: це помилка запуску (немає ключа), а не відповіді на запит; у нього немає HTTP-статусу.</li>
+    <li><strong><code>AppConfig.fromEnv(env)</code></strong> приймає об'єкт замість читання <code>process.env</code>, тому тест перевіряє «немає ключа» без зміни середовища. <code>load()</code> лише підвантажує <code>.env</code> й викликає <code>fromEnv</code>.</li>
+  </ul>
+</section>
+
+<!-- 6 -->
+<section id="domain">
+  <h2>6. Доменні класи</h2>
+  <p>Це «слова» програми. Кожен клас знає лише про себе й не торкається ні HTTP, ні мережі.</p>
+
+  <div class="file"><div class="name"><b>src/domain/CityQuery.js</b><span>value object: «місто + країна» після перевірки</span></div>
+<pre><code>import { ValidationError } from '../errors.js';
+
+// Запит «місто + (необовʼязково) країна», який уже пройшов перевірку.
+// Створити його можна лише через parse: якщо в руках CityQuery, назва й код країни правильні.
+export class CityQuery {
+  static MAX_LENGTH = 100;
+
+  static parse(rawCity, rawCountry, countries) {
+    const name = String(rawCity ?? '').trim();
+    if (!name || name.length &gt; CityQuery.MAX_LENGTH) {
+      throw new ValidationError(`Вкажи назву міста (до ${CityQuery.MAX_LENGTH} символів).`);
+    }
+    return new CityQuery(name, countries.normalize(rawCountry)); // порядок: спершу місто, потім країна
+  }
+
+  constructor(name, country) {
+    this.name = name;
+    this.country = country; // '' — будь-яка
+    Object.freeze(this);
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/CountryRegistry.js</b><span>білий список країн із приватними полями</span></div>
+<pre><code>import { EUROPE_COUNTRIES } from '../data/europeCountries.js';
+import { ValidationError } from '../errors.js';
+
+// Довідник країн: код ISO → назва. Це «білий список»: до зовнішнього API потрапить лише код, який тут є.
+// Дані ховаються в приватних полях, ззовні їх читають лише через методи.
+export class CountryRegistry {
+  #names;
+  #list;
+
+  constructor(names) {
+    this.#names = Object.freeze({ ...names });
+    // Для випадаючого списку: відсортовано за абеткою (українська колація)
+    this.#list = Object.freeze(
+      Object.entries(names)
+        .map(([code, name]) =&gt; Object.freeze({ code, name }))
+        .sort((a, b) =&gt; a.name.localeCompare(b.name, 'uk')),
+    );
+  }
+
+  // Країни Європи (трансконтинентальні не включені)
+  static europe() {
+    return new CountryRegistry(EUROPE_COUNTRIES);
+  }
+
+  list() {
+    return this.#list;
+  }
+
+  has(code) {
+    return Object.hasOwn(this.#names, code);
+  }
+
+  // Рядок користувача → код у верхньому регістрі, '' (країну не вказано) або ValidationError
+  normalize(raw) {
+    const code = String(raw ?? '').trim().toUpperCase();
+    if (code &amp;&amp; !this.has(code)) throw new ValidationError('Невідома країна.');
+    return code;
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/TileRequest.js</b><span>перевірка тайла до запиту назовні</span></div>
+<pre><code>import { ValidationError } from '../errors.js';
+
+// Запит тайла карти, який уже пройшов перевірку: шар із білого списку, а координати плитки
+// в межах сітки. У zoom z існує 2^z × 2^z тайлів (x, y від 0 до 2^z − 1).
+export class TileRequest {
+  static LAYERS = Object.freeze(['clouds_new', 'precipitation_new', 'wind_new', 'temp_new', 'pressure_new']);
+  static MAX_ZOOM = 10;
+
+  static parse({ layer, z, x, y }) {
+    const [nz, nx, ny] = [z, x, y].map(Number);
+    const side = 2 ** nz;
+    const ok =
+      TileRequest.LAYERS.includes(layer) &amp;&amp;
+      Number.isInteger(nz) &amp;&amp; nz &gt;= 0 &amp;&amp; nz &lt;= TileRequest.MAX_ZOOM &amp;&amp;
+      Number.isInteger(nx) &amp;&amp; nx &gt;= 0 &amp;&amp; nx &lt; side &amp;&amp;
+      Number.isInteger(ny) &amp;&amp; ny &gt;= 0 &amp;&amp; ny &lt; side;
+    if (!ok) throw new ValidationError('Некоректний тайл карти.');
+    return new TileRequest(layer, nz, nx, ny);
+  }
+
+  constructor(layer, z, x, y) {
+    this.layer = layer;
+    this.z = z;
+    this.x = x;
+    this.y = y;
+    Object.freeze(this);
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/ForecastBuilder.js</b><span>група запису по днях міста</span></div>
+<pre><code>import { DailyForecast } from './DailyForecast.js';
+
+// Збирає прогноз по днях зі сирої відповіді /forecast (40 записів по 3 години).
+// Групує записи по днях міста й бере N днів після сьогоднішнього. Без побічних ефектів: легко тестувати.
+export class ForecastBuilder {
+  static DEFAULT_DAYS = 3;
+
+  #days;
+
+  constructor({ days = ForecastBuilder.DEFAULT_DAYS } = {}) {
+    this.#days = days;
+  }
+
+  // dt — UNIX-секунди (UTC), tz — зсув міста від UTC у секундах → "YYYY-MM-DD" за місцевим часом
+  static #localDate(dt, tz) {
+    return new Date((dt + tz) * 1000).toISOString().slice(0, 10);
+  }
+
+  static #localHour(dt, tz) {
+    return new Date((dt + tz) * 1000).getUTCHours();
+  }
+
+  build(forecast, nowMs) {
+    const tz = forecast.city.timezone;
+    const today = ForecastBuilder.#localDate(Math.floor(nowMs / 1000), tz);
+
+    const byDay = new Map();
+    for (const item of forecast.list) {
+      const day = ForecastBuilder.#localDate(item.dt, tz);
+      if (day === today) continue; // сьогодні показує блок «зараз»
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(item);
+    }
+
+    return [...byDay.entries()].slice(0, this.#days).map(([date, items]) =&gt; this.#summarize(date, items, tz));
+  }
+
+  #summarize(date, items, tz) {
+    const temps = items.map((i) =&gt; i.main.temp);
+    const humidity = items.reduce((sum, i) =&gt; sum + i.main.humidity, 0) / items.length;
+    // Іконка й опис — із запису, найближчого до полудня
+    const noon = items.reduce((best, i) =&gt;
+      Math.abs(ForecastBuilder.#localHour(i.dt, tz) - 12) &lt; Math.abs(ForecastBuilder.#localHour(best.dt, tz) - 12) ? i : best,
+    );
+    return new DailyForecast({
+      date,
+      min: Math.min(...temps),
+      max: Math.max(...temps),
+      humidity: Math.round(humidity),
+      icon: noon.weather[0].icon.replace('n', 'd'), // нічна іконка на картці дня виглядає дивно
+      description: noon.weather[0].description,
+    });
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/Weather.js</b><span>наш DTO: <code>fromApi</code> і <code>toJSON</code></span></div>
+<pre><code>import { Coordinate } from './Coordinate.js';
+
+// Погода в місті зараз + прогноз. Це НАШ формат (DTO): фронтенд залежить лише від нього.
+// Чужий формат OpenWeatherMap перекладається в наш один раз, у fromApi.
+export class Weather {
+  static fromApi(current, forecast) {
+    return new Weather({
+      city: current.name,
+      country: current.sys.country,
+      description: current.weather[0].description,
+      icon: current.weather[0].icon,
+      temp: current.main.temp,
+      feelsLike: current.main.feels_like,
+      humidity: current.main.humidity,
+      pressure: current.main.pressure,
+      windSpeed: current.wind.speed,
+      coord: new Coordinate(current.coord.lat, current.coord.lon), // центр карти
+      forecast,
+    });
+  }
+
+  constructor({ city, country, description, icon, temp, feelsLike, humidity, pressure, windSpeed, coord, forecast }) {
+    this.city = city;
+    this.country = country;
+    this.description = description;
+    this.icon = icon;
+    this.temp = temp;
+    this.feelsLike = feelsLike;
+    this.humidity = humidity;
+    this.pressure = pressure;
+    this.windSpeed = windSpeed;
+    this.coord = coord;
+    this.forecast = forecast; // DailyForecast[]
+  }
+
+  // JSON.stringify викликає цей метод сам: порядок полів відповіді API визначено тут
+  toJSON() {
+    return {
+      city: this.city,
+      country: this.country,
+      description: this.description,
+      icon: this.icon,
+      temp: this.temp,
+      feelsLike: this.feelsLike,
+      humidity: this.humidity,
+      pressure: this.pressure,
+      windSpeed: this.windSpeed,
+      coord: this.coord,
+      forecast: this.forecast,
+    };
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/Grid.js</b><span>сітка точок над Європою</span></div>
+<pre><code>import { Coordinate } from './Coordinate.js';
+
+// Прямокутна сітка точок над територією. Рядки йдуть з ПІВНОЧІ на південь, колонки із заходу на схід:
+// такий порядок вимагає leaflet-velocity, і так само читає значення наш canvas-шар опадів.
+export class Grid {
+  // Європа: від 72.5°N до 32.5°N і від 25°W до 45°E з кроком 2.5° → 29 × 17 = 493 точки
+  static EUROPE = new Grid({ la1: 72.5, la2: 32.5, lo1: -25, lo2: 45, step: 2.5 });
+
+  constructor({ la1, la2, lo1, lo2, step }) {
+    this.la1 = la1; // північна межа
+    this.la2 = la2; // південна
+    this.lo1 = lo1; // західна
+    this.lo2 = lo2; // східна
+    this.step = step;
+    Object.freeze(this);
+  }
+
+  get ny() {
+    return Math.round((this.la1 - this.la2) / this.step) + 1;
+  }
+
+  get nx() {
+    return Math.round((this.lo2 - this.lo1) / this.step) + 1;
+  }
+
+  get pointCount() {
+    return this.nx * this.ny;
+  }
+
+  // Усі точки в порядку даних: рядок за рядком, з північного заходу
+  points() {
+    const points = [];
+    for (let r = 0; r &lt; this.ny; r++) {
+      for (let c = 0; c &lt; this.nx; c++) {
+        points.push(new Coordinate(this.la1 - r * this.step, this.lo1 + c * this.step));
+      }
+    }
+    return points;
+  }
+
+  // Опис для клієнта: з нього браузер знає, де лежить кожне значення масиву
+  describe() {
+    return {
+      la1: this.la1, la2: this.la2, lo1: this.lo1, lo2: this.lo2,
+      dx: this.step, dy: this.step, nx: this.nx, ny: this.ny,
+    };
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/GridSnapshot.js</b><span>знімок прогнозу: свіжість, зсув години</span></div>
+<pre><code>import { ValidationError } from '../errors.js';
+
+// Прогноз по всій сітці, отриманий від Open-Meteo в один момент: для кожної точки масиви за годинами.
+// Знає лише про себе: свій вік, який відрізок часу покриває й що було в годину idx.
+export class GridSnapshot {
+  constructor({ fetchedAt, startSec, hours, speed, dir, precip }) {
+    this.fetchedAt = fetchedAt; // мс, коли отримано
+    this.startSec = startSec; // UNIX-секунди першої години прогнозу
+    this.hours = hours; // скільки годин у прогнозі
+    this.speed = speed; // [точка][година] — швидкість вітру, м/с
+    this.dir = dir; // [точка][година] — напрямок, ° звідки дме
+    this.precip = precip; // [точка][година] — опади за попередню годину, мм
+    Object.freeze(this);
+  }
+
+  isFresh(nowMs, ttlMs) {
+    return nowMs - this.fetchedAt &lt; ttlMs;
+  }
+
+  // Копія, яку вважатимемо свіжою ще retryMs: так не б'ємо по сервісу, що не відповідає, на кожен запит
+  postponeRefresh(nowMs, ttlMs, retryMs) {
+    return new GridSnapshot({ ...this, fetchedAt: nowMs - ttlMs + retryMs });
+  }
+
+  // Година 0 — це «зараз», а не початок кешу: кеш міг бути отриманий кілька годин тому, тому
+  // початок зсувається до поточної години. Повертає індекс у масивах і скільки годин лишилось.
+  locate(nowMs, hour) {
+    const base = Math.max(0, Math.floor((nowMs / 1000 - this.startSec) / 3600));
+    const idx = base + hour;
+    const available = this.hours - base;
+    if (idx &gt;= this.hours) throw new ValidationError(`Прогноз доступний лише на ${available} год.`);
+    return { idx, available, time: new Date((this.startSec + idx * 3600) * 1000).toISOString() };
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/Frame.js</b><span>абстрактний кадр і два нащадки</span></div>
+<pre><code>// Кадр прогнозу на одну годину. Базовий клас зберігає спільне (година, скільки лишилось, час),
+// а нащадки додають свої дані. Контролеру байдуже, який саме кадр: він викликає JSON.stringify,
+// а той викликає toJSON нащадка (поліморфізм).
+//
+//   Frame
+//    ├─ WindFrame           — U/V для leaflet-velocity
+//    └─ PrecipitationFrame  — сітка опадів для canvas-шару
+export class Frame {
+  constructor({ hour, hours, time }) {
+    if (new.target === Frame) throw new TypeError('Frame is abstract: use WindFrame or PrecipitationFrame');
+    this.hour = hour;
+    this.hours = hours; // скільки годин прогнозу лишилось
+    this.time = time; // ISO-час цієї години
+  }
+
+  toJSON() {
+    return { hour: this.hour, hours: this.hours, time: this.time };
+  }
+}
+
+export class WindFrame extends Frame {
+  // u, v — масиви компонент вітру по сітці; grid — Grid, з якого вони взяті
+  static of(meta, grid, u, v) {
+    const header = (parameterNumber, parameterNumberName) =&gt; ({
+      parameterCategory: 2, parameterNumber, parameterNumberName, parameterUnit: 'm.s-1',
+      lo1: grid.lo1, lo2: grid.lo2, la1: grid.la1, la2: grid.la2,
+      dx: grid.step, dy: grid.step, nx: grid.nx, ny: grid.ny, refTime: meta.time,
+    });
+    return new WindFrame(meta, [
+      { header: header(2, 'U-component_of_wind'), data: u },
+      { header: header(3, 'V-component_of_wind'), data: v },
+    ]);
+  }
+
+  constructor(meta, data) {
+    super(meta);
+    this.data = data; // [U, V] у форматі leaflet-velocity
+  }
+
+  toJSON() {
+    return { ...super.toJSON(), data: this.data };
+  }
+}
+
+export class PrecipitationFrame extends Frame {
+  constructor(meta, grid, values) {
+    super(meta);
+    this.grid = grid; // опис сітки (Grid.describe())
+    this.values = values; // мм/год по точках сітки
+  }
+
+  toJSON() {
+    return { ...super.toJSON(), grid: this.grid, values: this.values };
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/domain/WindVector.js, ForecastHour.js, Coordinate.js, DailyForecast.js</b><span>малі класи</span></div>
+<pre><code>// Вектор вітру: u — на схід, v — на північ (м/с). Незмінний value object.
+export class WindVector {
+  // Метеорологічний напрямок — ЗВІДКИ дме вітер (0° = північний, дме на південь), тому знаки мінус
+  static fromMeteo(speed, directionDeg) {
+    const rad = (directionDeg * Math.PI) / 180;
+    return new WindVector(-speed * Math.sin(rad), -speed * Math.cos(rad));
+  }
+
+  constructor(u, v) {
+    this.u = u;
+    this.v = v;
+    Object.freeze(this);
+  }
+}
+
+import { ValidationError } from '../errors.js';
+
+// Номер години прогнозу: 0 — поточна, 1 — наступна і т.д. Ціле невідʼємне число (перевіряється при створенні).
+export class ForecastHour {
+  static parse(raw) {
+    const hour = Number(raw ?? 0);
+    if (!Number.isInteger(hour) || hour &lt; 0) throw new ValidationError('Некоректна година прогнозу.');
+    return new ForecastHour(hour);
+  }
+
+  constructor(value) {
+    this.value = value;
+    Object.freeze(this);
+  }
+}
+
+// Географічна точка (широта, довгота). Незмінна: після створення поля не змінити.
+export class Coordinate {
+  constructor(lat, lon) {
+    this.lat = lat;
+    this.lon = lon;
+    Object.freeze(this);
+  }
+
+  toJSON() {
+    return { lat: this.lat, lon: this.lon };
+  }
+}
+
+// Прогноз на один день. Форма відповіді API визначена в toJSON (порядок полів зафіксовано).
+export class DailyForecast {
+  constructor({ date, min, max, humidity, icon, description }) {
+    this.date = date; // 'YYYY-MM-DD' за місцевим часом міста
+    this.min = min;
+    this.max = max;
+    this.humidity = humidity;
+    this.icon = icon;
+    this.description = description;
+  }
+
+  toJSON() {
+    return {
+      date: this.date,
+      min: this.min,
+      max: this.max,
+      humidity: this.humidity,
+      icon: this.icon,
+      description: this.description,
+    };
+  }
+}</code></pre></div>
+
+  <ul>
+    <li><strong><code>parse</code> замість «валідатора».</strong> Раніше <code>parseTile()</code> повертала звичайний об'єкт, і далі ніхто не знав, чи він перевірений. Тепер <code>TileRequest</code> можна створити лише через <code>parse</code> (а конструктор отримує вже перевірені значення), тому клієнт OpenWeatherMap приймає <code>TileRequest</code> і не перевіряє нічого повторно.</li>
+    <li><strong><code>Object.freeze(this)</code></strong> робить value object незмінним: після створення поле не підмінити.</li>
+    <li><strong><code>GridSnapshot.postponeRefresh()</code> повертає <em>копію</em></strong>, а не змінює знімок. Раніше замикання підміняло об'єкт кешу через <code>{ ...cache, fetchedAt }</code> прямо в коді сервісу; тепер ця логіка прив'язана до даних.</li>
+    <li><strong><code>toJSON()</code> — єдине місце, де визначено форму відповіді API.</strong> Контролеру досить <code>JSON.stringify(obj)</code>. Для <code>Frame</code> цей виклик поліморфний: вітер віддає <code>data</code>, опади — <code>grid</code> і <code>values</code>.</li>
+    <li><strong>Приватні статичні методи</strong> (<code>static #localDate</code> у <code>ForecastBuilder</code>) — допоміжні функції, які не мають бути видимі зовні.</li>
+  </ul>
+</section>
+
+<!-- 7 -->
+<section id="clients">
+  <h2>7. Клієнти й наслідування</h2>
+  <div class="file"><div class="name"><b>src/clients/ApiClient.js</b><span>абстрактний предок: шаблонний метод <code>request</code></span></div>
+<pre><code>import { NotFoundError, RateLimitError, UpstreamError } from '../errors.js';
+
+// ШАР 3 — абстрактний Client (патерн «шаблонний метод»). Тут лежить ЗАГАЛЬНИЙ алгоритм запиту:
+//   1. зробити запит;  2. мережа впала → UpstreamError;  3. статус не 2xx → помилка за статусом.
+// Те, що різниться між сервісами (як вони називаються і які в них тексти помилок), нащадок дає сам,
+// перевизначивши serviceName і errorForStatus.
+export class ApiClient {
+  #fetchFn;
+
+  // fetchFn передається ззовні: у тестах підставляємо підроблений fetch, мережа не потрібна
+  constructor({ fetchFn = fetch } = {}) {
+    if (new.target === ApiClient) throw new TypeError('ApiClient is abstract: use a subclass');
+    this.#fetchFn = fetchFn;
+  }
+
+  // ── Що має дати нащадок ──
+  get serviceName() {
+    throw new Error(`${this.constructor.name} must define serviceName`);
+  }
+
+  // context — те, що знає викликач (наприклад, текст для 404). Базова версія — загальні тексти.
+  errorForStatus(status, context = {}) {
+    if (status === 404) return new NotFoundError(context.notFoundMessage ?? 'Не знайдено.');
+    if (status === 429) return new RateLimitError('Перевищено ліміт запитів, спробуй пізніше.');
+    return new UpstreamError(`Помилка сервісу ${this.serviceName}.`);
+  }
+
+  // ── Загальний алгоритм ──
+  async request(url, context) {
+    let res;
+    try {
+      res = await this.#fetchFn(url);
+    } catch (err) {
+      throw new UpstreamError(`Не вдалося звʼязатися з ${this.serviceName}.`, { cause: err });
+    }
+    if (!res.ok) throw this.errorForStatus(res.status, context);
+    return res;
+  }
+
+  async getJson(url, context) {
+    return (await this.request(url, context)).json();
+  }
+
+  async getBuffer(url, context) {
+    return Buffer.from(await (await this.request(url, context)).arrayBuffer());
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/clients/OpenWeatherClient.js</b><span>нащадок: свої URL, ключ і тексти помилок</span></div>
+<pre><code>import { ApiClient } from './ApiClient.js';
+import { UpstreamError } from '../errors.js';
+
+// Клієнт OpenWeatherMap (патерн Adapter). Єдине місце, яке знає, ЯК говорити з цим API:
+// URL, параметри, ключ, коди відповідей. Повертає «сирий» JSON або байти тайла.
+export class OpenWeatherClient extends ApiClient {
+  static BASE_URL = 'https://api.openweathermap.org/data/2.5';
+  static TILE_URL = 'https://tile.openweathermap.org/map'; // Weather Maps 1.0
+
+  #apiKey;
+
+  constructor({ apiKey, ...options }) {
+    super(options); // fetchFn
+    this.#apiKey = apiKey; // приватне: ключ не потрапить у лог чи відповідь випадково
+  }
+
+  // ── Перевизначення базового класу (поліморфізм) ──
+  get serviceName() {
+    return 'OpenWeatherMap';
+  }
+
+  errorForStatus(status, context) {
+    if (status === 401) {
+      return new UpstreamError('API-ключ недійсний або ще не активований (до 2 годин після створення).');
+    }
+    if (status === 404 || status === 429) return super.errorForStatus(status, context);
+    return new UpstreamError('Помилка сервісу погоди.');
+  }
+
+  // ── Своє ──
+  // query — CityQuery ({ name, country }); country (необовʼязково) звужує пошук: q=Kyiv,UA
+  async #fetchWeather(endpoint, query) {
+    const url = new URL(`${OpenWeatherClient.BASE_URL}/${endpoint}`);
+    const q = query.country ? `${query.name},${query.country}` : query.name;
+    url.search = new URLSearchParams({ q, appid: this.#apiKey, units: 'metric', lang: 'ua' });
+    return this.getJson(url, {
+      notFoundMessage: `Місто «${query.name}» не знайдено${query.country ? ` (${query.country})` : ''}.`,
+    });
+  }
+
+  getCurrent(query) {
+    return this.#fetchWeather('weather', query); // поточна погода
+  }
+
+  getForecast(query) {
+    return this.#fetchWeather('forecast', query); // 5 днів × кожні 3 години
+  }
+
+  // Тайл 256×256 PNG з шаром погоди. Ключ додаємо тут, на сервері, — браузер його не бачить.
+  async getMapTile(tile) {
+    const url = new URL(`${OpenWeatherClient.TILE_URL}/${tile.layer}/${tile.z}/${tile.x}/${tile.y}.png`);
+    url.search = new URLSearchParams({ appid: this.#apiKey });
+    return this.getBuffer(url, { notFoundMessage: 'Тайл не знайдено.' });
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/clients/OpenMeteoClient.js</b><span>другий нащадок</span></div>
+<pre><code>import { ApiClient } from './ApiClient.js';
+import { RateLimitError, UpstreamError } from '../errors.js';
+
+// Клієнт Open-Meteo: прогноз по сітці точок (безкоштовний, без ключа, лише некомерційне використання).
+// Ліміти безкоштовного API: 600 викликів/хв, 10 000/добу; кожна точка в запиті рахується як виклик —
+// тому сервіс над нами кешує сітку та ділить її на порції.
+export class OpenMeteoClient extends ApiClient {
+  static URL = 'https://api.open-meteo.com/v1/forecast';
+
+  get serviceName() {
+    return 'Open-Meteo';
+  }
+
+  // Тут лише два випадки: ліміт і «все інше». Тексти відрізняються від OpenWeatherMap.
+  errorForStatus(status) {
+    if (status === 429) return new RateLimitError('Open-Meteo: перевищено ліміт запитів, спробуй пізніше.');
+    return new UpstreamError('Помилка сервісу вітру (Open-Meteo).');
+  }
+
+  // points: Coordinate[]. Повертає масив (по одному елементу на точку, в тому ж порядку):
+  //   { hourly: { time: [unix-секунди], wind_speed_10m: [м/с], wind_direction_10m: [° звідки дме],
+  //               precipitation: [мм за попередню годину] } }
+  // Кілька змінних в одному запиті не збільшують кількість викликів: рахується кожна точка.
+  async getGrid(points, hours) {
+    const url = new URL(OpenMeteoClient.URL);
+    url.search = new URLSearchParams({
+      latitude: points.map((p) =&gt; p.lat).join(','),
+      longitude: points.map((p) =&gt; p.lon).join(','),
+      hourly: 'wind_speed_10m,wind_direction_10m,precipitation',
+      wind_speed_unit: 'ms',
+      forecast_hours: String(hours),
+      timeformat: 'unixtime',
+      cell_selection: 'nearest', // без «підлаштування під сушу» — над морем лишаємось над морем
+    });
+    const body = await this.getJson(url);
+    return Array.isArray(body) ? body : [body]; // для однієї точки API повертає обʼєкт, а не масив
+  }
+}</code></pre></div>
+  <ul>
+    <li><strong>Шаблонний метод.</strong> <code>request()</code> у предку: виконати запит → мережа впала → <code>UpstreamError</code> → статус не 2xx → <code>this.errorForStatus(status, context)</code>. Нащадок не пише це заново, а лише перевизначає <code>errorForStatus</code> і <code>serviceName</code>.</li>
+    <li><strong>Поліморфізм.</strong> Той самий виклик <code>errorForStatus(429)</code> дає різні тексти в двох клієнтах (тест це перевіряє). <code>OpenWeatherClient</code> ще й викликає <code>super.errorForStatus()</code> для 404 і 429, тобто використовує предка там, де його поведінка підходить.</li>
+    <li><strong>Інкапсуляція.</strong> <code>fetchFn</code> лежить у приватному <code>#fetchFn</code> предка, ключ — у <code>#apiKey</code>. Нащадок не бачить <code>#fetchFn</code> напряму й користується <code>request()</code>.</li>
+    <li><strong><code>fetchFn</code> через конструктор.</strong> У тестах передаємо підроблений <code>fetch</code>: він повертає потрібний статус чи кидає помилку, а мережа не потрібна.</li>
+    <li><strong><code>context</code>.</strong> Предок не знає, що казати при 404 («Місто не знайдено» чи «Тайл не знайдено»). Це знає викликач, тож він передає <code>notFoundMessage</code>, а предок вставляє його в помилку.</li>
+  </ul>
+</section>
+
+<!-- 8 -->
+<section id="services">
+  <h2>8. Сервіси</h2>
+  <div class="file"><div class="name"><b>src/services/WeatherService.js</b><span>оркеструє доменні класи</span></div>
+<pre><code>// ШАР 2 — Service (бізнес-логіка). Нічого не знає ні про HTTP, ні про URL OpenWeatherMap.
+// Залежності приходять у конструктор → у тестах підставляємо фейки (ін'єкція залежностей).
+import { CityQuery } from '../domain/CityQuery.js';
+import { CountryRegistry } from '../domain/CountryRegistry.js';
+import { ForecastBuilder } from '../domain/ForecastBuilder.js';
+import { TileRequest } from '../domain/TileRequest.js';
+import { Weather } from '../domain/Weather.js';
+
+export class WeatherService {
+  #client;
+  #countries;
+  #forecastBuilder;
+  #now;
+
+  constructor({ client, countries = CountryRegistry.europe(), forecastBuilder = new ForecastBuilder(), now = Date.now }) {
+    this.#client = client;
+    this.#countries = countries;
+    this.#forecastBuilder = forecastBuilder;
+    this.#now = now; // «сьогодні» залежить від годинника: тест фіксує час
+  }
+
+  getCountries() {
+    return this.#countries.list();
+  }
+
+  // Параметри тайла перевіряє TileRequest ДО запиту назовні: довільний шлях до OpenWeatherMap не пройде
+  async getMapTile(params) {
+    return this.#client.getMapTile(TileRequest.parse(params));
+  }
+
+  async getWeather(rawCity, rawCountry) {
+    const query = CityQuery.parse(rawCity, rawCountry, this.#countries);
+
+    // Два запити паралельно: сторінка швидша, ніж при послідовних
+    const [current, forecast] = await Promise.all([this.#client.getCurrent(query), this.#client.getForecast(query)]);
+
+    return Weather.fromApi(current, this.#forecastBuilder.build(forecast, this.#now()));
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/services/GridService.js</b><span>кеш сітки: свіжість, спільний запит, порції</span></div>
+<pre><code>// ШАР 2 — Service для карт по сітці: анімований вітер і опади.
+// Бере прогноз по сітці над Європою ОДНИМ набором запитів до Open-Meteo, кешує його
+// (щоб не вичерпати ліміти) і віддає по одній годині у вигляді кадрів:
+//   • вітер  → WindFrame ([U, V] для leaflet-velocity);
+//   • опади  → PrecipitationFrame (плоский масив мм/год для власного canvas-шару).
+import { ForecastHour } from '../domain/ForecastHour.js';
+import { Grid } from '../domain/Grid.js';
+import { GridSnapshot } from '../domain/GridSnapshot.js';
+import { PrecipitationFrame, WindFrame } from '../domain/Frame.js';
+import { WindVector } from '../domain/WindVector.js';
+import { UpstreamError } from '../errors.js';
+
+const sleepMs = (ms) =&gt; new Promise((resolve) =&gt; setTimeout(resolve, ms));
+const round2 = (n) =&gt; Math.round(n * 100) / 100;
+
+export class GridService {
+  static FORECAST_HOURS = 72;
+  static CHUNK_SIZE = 100; // точок в одному запиті до Open-Meteo
+  static TTL_MS = 3 * 60 * 60 * 1000; // модель оновлюється раз на кілька годин — частіше питати марно
+  static RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
+
+  #client;
+  #grid;
+  #now;
+  #sleep;
+  #pauseMs;
+  #snapshot = null; // GridSnapshot у памʼяті
+  #inflight = null; // Promise оновлення, що вже виконується
+
+  constructor({ client, grid = Grid.EUROPE, now = Date.now, sleep = sleepMs, pauseMs = 1000 }) {
+    this.#client = client;
+    this.#grid = grid;
+    this.#now = now;
+    this.#sleep = sleep; // у тесті «сон» миттєвий
+    this.#pauseMs = pauseMs;
+  }
+
+  // hour = 0 — поточна година, 1 — наступна і т.д.
+  async getWindFrame(rawHour) {
+    const { snapshot, idx, meta } = await this.#locate(rawHour);
+    const u = [];
+    const v = [];
+    for (let p = 0; p &lt; snapshot.speed.length; p++) {
+      const wind = WindVector.fromMeteo(snapshot.speed[p][idx] ?? 0, snapshot.dir[p][idx] ?? 0);
+      u.push(round2(wind.u));
+      v.push(round2(wind.v));
+    }
+    return WindFrame.of(meta, this.#grid, u, v);
+  }
+
+  // Опади за годину, мм (Open-Meteo: сума за попередню годину). Немає даних → 0.
+  async getPrecipitationFrame(rawHour) {
+    const { snapshot, idx, meta } = await this.#locate(rawHour);
+    const values = snapshot.precip.map((series) =&gt; round2(series[idx] ?? 0));
+    return new PrecipitationFrame(meta, this.#grid.describe(), values);
+  }
+
+  // Спільна частина для всіх кадрів: перевірка години, свіжий знімок, зсув до поточної години
+  async #locate(rawHour) {
+    const hour = ForecastHour.parse(rawHour).value;
+    const snapshot = await this.#freshSnapshot();
+    const { idx, available, time } = snapshot.locate(this.#now(), hour);
+    return { snapshot, idx, meta: { hour, hours: available, time } };
+  }
+
+  // Свіжий знімок → віддаємо. Інакше оновлюємо; кілька одночасних запитів ділять один запит назовні.
+  async #freshSnapshot() {
+    if (this.#snapshot?.isFresh(this.#now(), GridService.TTL_MS)) return this.#snapshot;
+    this.#inflight ??= this.#download()
+      .then((fresh) =&gt; (this.#snapshot = fresh))
+      .catch((err) =&gt; {
+        if (!this.#snapshot) throw err;
+        // Є старий знімок: лишаємо його й пробуємо знову за 10 хвилин, а не на кожен запит
+        this.#snapshot = this.#snapshot.postponeRefresh(this.#now(), GridService.TTL_MS, GridService.RETRY_AFTER_FAIL_MS);
+        return this.#snapshot;
+      })
+      .finally(() =&gt; { this.#inflight = null; });
+    return this.#inflight;
+  }
+
+  async #download() {
+    const points = this.#grid.points();
+    const speed = [];
+    const dir = [];
+    const precip = [];
+    let times = null;
+
+    for (let i = 0; i &lt; points.length; i += GridService.CHUNK_SIZE) {
+      if (i &gt; 0) await this.#sleep(this.#pauseMs); // не частимо: ліміт 600 викликів на хвилину
+      const chunk = points.slice(i, i + GridService.CHUNK_SIZE);
+      const results = await this.#client.getGrid(chunk, GridService.FORECAST_HOURS);
+      if (results.length !== chunk.length) throw new UpstreamError('Open-Meteo повернув неповні дані.');
+
+      for (const r of results) {
+        times ??= r.hourly.time;
+        speed.push(r.hourly.wind_speed_10m);
+        dir.push(r.hourly.wind_direction_10m);
+        precip.push(r.hourly.precipitation);
+      }
+    }
+    return new GridSnapshot({ fetchedAt: this.#now(), startSec: times[0], hours: times.length, speed, dir, precip });
+  }
+}</code></pre></div>
+  <ul>
+    <li><strong>Сервіс стає тоншим.</strong> <code>WeatherService.getWeather()</code> тепер це чотири рядки: розібрати запит, дві паралельні вибірки, зібрати <code>Weather</code>. Уся перевірка пішла в <code>CityQuery</code>.</li>
+    <li><strong>Параметри з замовчуванням.</strong> <code>countries = CountryRegistry.europe()</code>, <code>forecastBuilder = new ForecastBuilder()</code>, <code>grid = Grid.EUROPE</code>: у роботі нічого передавати не треба, а у тесті можна підставити власну сітку з 4 точок.</li>
+    <li><strong>Спільний запит.</strong> <code>#inflight</code> — це <code>Promise</code> оновлення, що вже йде. Якщо кілька запитів приходять, поки сітка вантажиться, вони чекають на нього, а не шлють ще по 493 виклики. Вітер і опади теж ділять один <code>GridSnapshot</code>.</li>
+    <li><strong>Невдале оновлення.</strong> Є старий знімок: <code>postponeRefresh</code> залишає його й відкладає повторну спробу на 10 хвилин. Знімка ще нема: помилка йде вгору.</li>
+    <li><strong><code>now</code> і <code>sleep</code> з конструктора.</strong> Тест рухає «годинник» і не чекає секундних пауз між порціями.</li>
+    <li><strong>Ліміти Open-Meteo.</strong> 493 точки діляться на порції по 100 (5 запитів), між порціями пауза 1 с. Ці числа тепер статичні поля класу (<code>GridService.CHUNK_SIZE</code> тощо).</li>
+  </ul>
+</section>
+
+<!-- 9 -->
+<section id="http">
+  <h2>9. HTTP-шар і composition root</h2>
+  <div class="file"><div class="name"><b>src/http/Router.js</b><span>маршрути як дані</span></div>
+<pre><code>// Маршрутизатор: за шляхом запиту обирає обробника (контролер) і викликає його handle(req, res, ctx).
+// Нічого не знає про те, що саме роблять контролери: працює з будь-яким обʼєктом, який має handle.
+export class Router {
+  #routes = [];
+  #fallback;
+
+  // fallback — обробник для всього, що не збіглося з маршрутами (у нас це роздача статичних файлів)
+  constructor({ fallback }) {
+    this.#fallback = fallback;
+  }
+
+  // pattern: рядок (точний збіг) або RegExp (групи потрапляють у ctx.params). Повертає this: можна ланцюжком.
+  get(pattern, controller) {
+    this.#routes.push({ pattern, controller });
+    return this;
+  }
+
+  #match(pathname) {
+    for (const { pattern, controller } of this.#routes) {
+      if (typeof pattern === 'string') {
+        if (pattern === pathname) return { controller, params: [] };
+      } else {
+        const m = pathname.match(pattern);
+        if (m) return { controller, params: m.slice(1) };
+      }
+    }
+    return null;
+  }
+
+  async handle(req, res) {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      if (req.method !== 'GET') return void res.writeHead(405).end();
+      const { controller, params } = this.#match(url.pathname) ?? { controller: this.#fallback, params: [] };
+      await controller.handle(req, res, { url, params });
+    } catch (err) {
+      // Страховка: контролери ловлять свої помилки самі, але некоректний запит (напр., дивний Host) не має валити сервер
+      console.error(err);
+      if (!res.headersSent) res.writeHead(400);
+      res.end();
+    }
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/http/StaticHandler.js</b><span>той самий метод handle, що й у контролерів</span></div>
+<pre><code>import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+// Роздача файлів із public/. Має той самий метод handle(req, res, ctx), що й контролери,
+// тож Router викликає його однаково (поліморфізм: «щось, що вміє handle»).
+export class StaticHandler {
+  static MIME = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+  };
+
+  #publicDir;
+
+  constructor(publicDir) {
+    this.#publicDir = publicDir;
+  }
+
+  async handle(req, res, { url }) {
+    let rel;
+    try {
+      rel = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
+    } catch {
+      res.writeHead(400).end('Bad request'); // некоректне %-кодування (наприклад, /%zz)
+      return;
+    }
+    const file = path.normalize(path.join(this.#publicDir, rel));
+
+    if (!file.startsWith(this.#publicDir + path.sep)) {
+      res.writeHead(403).end('Forbidden'); // захист від ../ (path traversal)
+      return;
+    }
+    try {
+      const body = await readFile(file);
+      res.writeHead(200, { 'Content-Type': StaticHandler.MIME[path.extname(file)] || 'application/octet-stream' });
+      res.end(body);
+    } catch {
+      res.writeHead(404).end('Not found');
+    }
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>src/controllers/FrameController.js, TileController.js</b><span>нащадки Controller</span></div>
+<pre><code>import { Controller } from './Controller.js';
+
+// Обробник кадру по сітці: GET ...?hour=N → JSON. Один клас обслуговує і вітер, і опади:
+// йому передають функцію сервісу, яка повертає Frame (WindFrame чи PrecipitationFrame).
+//   /api/wind          → { hour, hours, time, data: [U, V] }
+//   /api/precipitation → { hour, hours, time, grid, values }
+export class FrameController extends Controller {
+  #getFrame;
+
+  constructor(getFrame) {
+    super();
+    this.#getFrame = getFrame;
+  }
+
+  async respond(req, res, { url }) {
+    this.sendJson(res, 200, await this.#getFrame(url.searchParams.get('hour')));
+  }
+}
+
+import { Controller } from './Controller.js';
+
+// GET /api/tiles/&lt;layer&gt;/&lt;z&gt;/&lt;x&gt;/&lt;y&gt;.png → PNG-тайл шару погоди (проксі до OpenWeatherMap).
+// Ключ додає сервер: у браузері його немає.
+export class TileController extends Controller {
+  static ROUTE = /^\/api\/tiles\/([a-z_]+)\/(\d+)\/(\d+)\/(\d+)\.png$/;
+
+  #weatherService;
+
+  constructor({ weatherService }) {
+    super();
+    this.#weatherService = weatherService;
+  }
+
+  async respond(req, res, { params }) {
+    const [layer, z, x, y] = params; // групи регулярного виразу маршруту
+    const png = await this.#weatherService.getMapTile({ layer, z, x, y });
+    // Дані на карті оновлюються рідко — браузер може кешувати тайл 10 хвилин
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=600' });
+    res.end(png);
+  }
+}</code></pre></div>
+  <div class="file"><div class="name"><b>server.js</b><span>збірка застосунку</span></div>
+<pre><code>// Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо класи між собою.
+//   HTTP → Router → Controller → Service → Client → OpenWeatherMap / Open-Meteo
+import { AppConfig } from './src/AppConfig.js';
+import { OpenMeteoClient } from './src/clients/OpenMeteoClient.js';
+import { OpenWeatherClient } from './src/clients/OpenWeatherClient.js';
+import { CountriesController } from './src/controllers/CountriesController.js';
+import { FrameController } from './src/controllers/FrameController.js';
+import { TileController } from './src/controllers/TileController.js';
+import { WeatherController } from './src/controllers/WeatherController.js';
+import { Router } from './src/http/Router.js';
+import { StaticHandler } from './src/http/StaticHandler.js';
+import { WeatherApp } from './src/http/WeatherApp.js';
+import { GridService } from './src/services/GridService.js';
+import { WeatherService } from './src/services/WeatherService.js';
 
 let config;
 try {
-  config = loadConfig();
+  config = AppConfig.load();
 } catch (err) {
   console.error(err.message);
   process.exit(1);
 }
 
-// Dependency Injection вручну: кожен шар отримує те, що йому потрібно, через аргументи.
-const client = createOpenWeatherClient({ apiKey: config.apiKey });
-const weatherService = createWeatherService({ client });
-const getWeather = createWeatherController({ weatherService });
-const getTile = createTileController({ weatherService });
-const getCountries = createCountriesController({ weatherService });
-const gridService = createGridService({ client: createOpenMeteoClient() });
-const getWind = createFrameController(gridService.getWindFrame);
-const getPrecipitation = createFrameController(gridService.getPrecipitationFrame);
-const serveStatic = createStaticHandler(config.publicDir);
+// Ін'єкція залежностей вручну: кожен клас отримує те, що йому потрібно, через конструктор.
+const weatherService = new WeatherService({ client: new OpenWeatherClient({ apiKey: config.apiKey }) });
+const gridService = new GridService({ client: new OpenMeteoClient() });
 
-http
-  .createServer((req, res) =&gt; {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    if (req.method !== 'GET') return void res.writeHead(405).end();
-    if (url.pathname === '/api/weather') return void getWeather(req, res, url);
-    if (url.pathname === '/api/wind') return void getWind(req, res, url);
-    if (url.pathname === '/api/precipitation') return void getPrecipitation(req, res, url);
-    if (url.pathname === '/api/countries') return void getCountries(req, res);
-    const tile = matchTileRoute(url.pathname);
-    if (tile) return void getTile(req, res, tile);
-    serveStatic(req, res, url);
-  })
-  .listen(config.port, () =&gt; console.log(`Weather Dashboard: http://localhost:${config.port}`));</code></pre></div>
-  <p>Це єдине місце, де шари <strong>створюються і з'єднуються</strong>. Решта файлів експортують фабрики (<code>createX</code>) і нічого не створюють самі.</p>
-  <div class="note"><strong class="t">Dependency Injection вручну</strong>
-    <p>Фабрика <code>createWeatherService({ client })</code> бере клієнта <em>аргументом</em>. Сервіс не пише <code>import { client } ...</code> і не залежить від конкретної реалізації. У тесті сюди передають фейк, у продакшені справжній Client. Для цього не потрібен жоден фреймворк.</p></div>
-  <p>Також тут перевіряється конфіг: якщо ключа немає, програма завершується з зрозумілим повідомленням, а не падає пізніше з 401.</p>
-</section>
+const router = new Router({ fallback: new StaticHandler(config.publicDir) })
+  .get('/api/weather', new WeatherController({ weatherService }))
+  .get('/api/countries', new CountriesController({ weatherService }))
+  .get(TileController.ROUTE, new TileController({ weatherService }))
+  .get('/api/wind', new FrameController((hour) =&gt; gridService.getWindFrame(hour)))
+  .get('/api/precipitation', new FrameController((hour) =&gt; gridService.getPrecipitationFrame(hour)));
 
-<!-- 5 -->
-<section id="controller">
-  <h2>5. Controller: HTTP-шар</h2>
-  <div class="file"><div class="name"><b>src/controllers/weatherController.js</b><span>шар 1</span></div>
-<pre><code>// ШАР 1 — Controller (HTTP-шар). Читає запит, викликає сервіс, формує відповідь.
-// Жодної бізнес-логіки: лише «HTTP in → service → HTTP out».
-import { AppError } from '../errors.js';
-
-function sendJson(res, status, body) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body));
-}
-
-function sendError(res, err) {
-  if (err instanceof AppError) return sendJson(res, err.status, { error: err.message });
-  console.error(err); // непередбачена помилка — деталі лише в лог, клієнту загальне повідомлення
-  sendJson(res, 500, { error: 'Внутрішня помилка сервера.' });
-}
-
-export function createWeatherController({ weatherService }) {
-  return async function getWeather(req, res, url) {
-    try {
-      const { searchParams } = url;
-      const data = await weatherService.getWeather(searchParams.get('city'), searchParams.get('country'));
-      sendJson(res, 200, data);
-    } catch (err) {
-      sendError(res, err);
-    }
-  };
-}
-
-// Обробник кадру по сітці: GET ...?hour=N → JSON. getFrame — функція сервісу (getWindFrame, getPrecipitationFrame):
-//   /api/wind          → { hour, hours, time, data: [U, V] }   для анімації вітру
-//   /api/precipitation → { hour, hours, time, grid, values }   для шару опадів
-export function createFrameController(getFrame) {
-  return async function handleFrame(req, res, url) {
-    try {
-      sendJson(res, 200, await getFrame(url.searchParams.get('hour')));
-    } catch (err) {
-      sendError(res, err);
-    }
-  };
-}
-
-// GET /api/countries → [{ code: 'UA', name: 'Україна' }, …] для випадаючого списку
-export function createCountriesController({ weatherService }) {
-  return function getCountries(req, res) {
-    sendJson(res, 200, weatherService.getCountries());
-  };
-}
-
-// GET /api/tiles/&lt;layer&gt;/&lt;z&gt;/&lt;x&gt;/&lt;y&gt;.png → PNG-тайл шару погоди (проксі до OpenWeatherMap).
-const TILE_ROUTE = /^\/api\/tiles\/([a-z_]+)\/(\d+)\/(\d+)\/(\d+)\.png$/;
-
-export function createTileController({ weatherService }) {
-  return async function getTile(req, res, match) {
-    try {
-      const [, layer, z, x, y] = match;
-      const png = await weatherService.getMapTile({ layer, z, x, y });
-      // Дані на карті оновлюються рідко — браузер може кешувати тайл 10 хвилин
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=600' });
-      res.end(png);
-    } catch (err) {
-      sendError(res, err);
-    }
-  };
-}
-
-export const matchTileRoute = (pathname) =&gt; pathname.match(TILE_ROUTE);</code></pre></div>
+new WeatherApp({ router }).listen(config.port, () =&gt; console.log(`Weather Dashboard: http://localhost:${config.port}`));</code></pre></div>
   <ul>
-    <li>Контролер <strong>не містить логіки</strong>: бере параметр, викликає сервіс, віддає результат.</li>
-    <li><code>err instanceof AppError</code> означає «очікувана помилка»: статус і текст уже вирішені нижче, контролер їх лише віддає.</li>
-    <li>Будь-яка інша помилка (баг) іде в консоль, а клієнт отримує загальне 500. Деталі помилки назовні не виходять.</li>
-    <li>Тут ще три обробники: <code>createTileController</code> (віддає PNG з <code>Cache-Control: max-age=600</code>), <code>createCountriesController</code> і <code>createFrameController</code> (один обробник для <code>/api/wind</code> і <code>/api/precipitation</code>: йому передають функцію сервісу). Спільна функція <code>sendError</code> перетворює <code>AppError</code> на відповідь для всіх.</li>
+    <li><strong>Качина типізація.</strong> <code>Router</code> не перевіряє, що кладе в нього <code>get()</code>: головне, щоб у об'єкта був <code>handle(req, res, ctx)</code>. Тому контролери й <code>StaticHandler</code> стоять в одному ряду.</li>
+    <li><strong>Один <code>FrameController</code> на вітер і опади.</strong> Йому передають функцію, яка повертає <code>Frame</code>, а вигляд відповіді визначає <code>toJSON</code> кадру.</li>
+    <li><strong>Маршрут тайла живе в <code>TileController.ROUTE</code>.</strong> Регулярний вираз стоїть поруч із кодом, який його використовує. Групи потрапляють у <code>ctx.params</code>.</li>
+    <li><strong><code>server.js</code> — єдине місце з <code>new</code>.</strong> Усі залежності з'єднано тут: клієнт → сервіс → контролер → <code>Router</code> → <code>WeatherApp</code>. Решта класів їх не створює, а отримує.</li>
   </ul>
-  <div class="note warn"><strong class="t">Підводний камінь</strong><p>Кожна функція, що кидає, має бути всередині <code>try</code>. Інакше відхилений <code>Promise</code> у <code>http.createServer</code> залишить запит без відповіді.</p></div>
-</section>
-
-<!-- 6 -->
-<section id="service">
-  <h2>6. Service: логіка і власний формат даних</h2>
-  <div class="file"><div class="name"><b>src/services/weatherService.js</b><span>шар 2</span></div>
-<pre><code>// ШАР 2 — Service (бізнес-логіка). Нічого не знає ні про HTTP, ні про URL OpenWeatherMap.
-// Залежності (client, now) приходять ззовні → у тестах підставляємо фейки (Dependency Injection).
-import { AppError } from '../errors.js';
-import { EUROPE_COUNTRIES, EUROPE_LIST } from '../data/europeCountries.js';
-
-const DAYS = 3;
-
-// dt — UNIX-секунди (UTC), timezone — зсув міста від UTC у секундах → "YYYY-MM-DD" за місцевим часом.
-const localDate = (dt, tz) =&gt; new Date((dt + tz) * 1000).toISOString().slice(0, 10);
-const localHour = (dt, tz) =&gt; new Date((dt + tz) * 1000).getUTCHours();
-
-// Чиста функція (без побічних ефектів) — легко тестувати.
-// Прогноз = 40 записів по 3 год. Групуємо по днях міста й беремо 3 дні після сьогоднішнього.
-export function buildDailyForecast(forecast, nowMs) {
-  const tz = forecast.city.timezone;
-  const today = localDate(Math.floor(nowMs / 1000), tz);
-
-  const byDay = new Map();
-  for (const item of forecast.list) {
-    const day = localDate(item.dt, tz);
-    if (day === today) continue;
-    if (!byDay.has(day)) byDay.set(day, []);
-    byDay.get(day).push(item);
-  }
-
-  return [...byDay.entries()].slice(0, DAYS).map(([date, items]) =&gt; {
-    const temps = items.map((i) =&gt; i.main.temp);
-    const humidity = items.reduce((sum, i) =&gt; sum + i.main.humidity, 0) / items.length;
-    // Іконка/опис — із запису, найближчого до полудня
-    const noon = items.reduce((best, i) =&gt;
-      Math.abs(localHour(i.dt, tz) - 12) &lt; Math.abs(localHour(best.dt, tz) - 12) ? i : best,
-    );
-    return {
-      date,
-      min: Math.min(...temps),
-      max: Math.max(...temps),
-      humidity: Math.round(humidity),
-      icon: noon.weather[0].icon.replace('n', 'd'),
-      description: noon.weather[0].description,
-    };
-  });
-}
-
-// Дозволені шари карти (білий список): іншого рядка до OpenWeatherMap не пропустимо.
-export const MAP_LAYERS = ['clouds_new', 'precipitation_new', 'wind_new', 'temp_new', 'pressure_new'];
-const MAX_ZOOM = 10;
-
-// Валідація координат тайла: у zoom z існує 2^z × 2^z тайлів (x, y від 0 до 2^z − 1).
-export function parseTile({ layer, z, x, y }) {
-  const [nz, nx, ny] = [z, x, y].map(Number);
-  const side = 2 ** nz;
-  const ok =
-    MAP_LAYERS.includes(layer) &amp;&amp;
-    Number.isInteger(nz) &amp;&amp; nz &gt;= 0 &amp;&amp; nz &lt;= MAX_ZOOM &amp;&amp;
-    Number.isInteger(nx) &amp;&amp; nx &gt;= 0 &amp;&amp; nx &lt; side &amp;&amp;
-    Number.isInteger(ny) &amp;&amp; ny &gt;= 0 &amp;&amp; ny &lt; side;
-  if (!ok) throw new AppError(400, 'Некоректний тайл карти.');
-  return { layer, z: nz, x: nx, y: ny };
-}
-
-export function createWeatherService({ client, now = Date.now }) {
-  return {
-    async getMapTile(params) {
-      const { layer, z, x, y } = parseTile(params);
-      return client.getMapTile(layer, z, x, y);
-    },
-
-    getCountries: () =&gt; EUROPE_LIST,
-
-    async getWeather(rawCity, rawCountry) {
-      const city = String(rawCity ?? '').trim();
-      if (!city || city.length &gt; 100) throw new AppError(400, 'Вкажи назву міста (до 100 символів).');
-
-      // Країна необовʼязкова; якщо є — лише з нашого списку (білий список, як і шари карти)
-      const country = String(rawCountry ?? '').trim().toUpperCase();
-      if (country &amp;&amp; !(country in EUROPE_COUNTRIES)) throw new AppError(400, 'Невідома країна.');
-
-      const [current, forecast] = await Promise.all([
-        client.getCurrent(city, country),
-        client.getForecast(city, country),
-      ]);
-
-      // Мапимо чужий формат у НАШ (DTO). Фронтенд залежить лише від цієї форми.
-      return {
-        city: current.name,
-        country: current.sys.country,
-        description: current.weather[0].description,
-        icon: current.weather[0].icon,
-        temp: current.main.temp,
-        feelsLike: current.main.feels_like,
-        humidity: current.main.humidity,
-        pressure: current.main.pressure,
-        windSpeed: current.wind.speed,
-        coord: { lat: current.coord.lat, lon: current.coord.lon }, // центр карти
-        forecast: buildDailyForecast(forecast, now()),
-      };
-    },
-  };
-}</code></pre></div>
-  <h3>Що тут важливо</h3>
-  <ul>
-    <li><strong>Валідація</strong> стоїть до будь-якого запиту: порожнє місто чи невідома країна не витрачають ліміт API. Країна й шар карти перевіряються за <strong>білим списком</strong> (<code>EUROPE_COUNTRIES</code>, <code>MAP_LAYERS</code>), а координати тайла — за межами <code>0…2^z−1</code> (<code>parseTile</code>). У запит до OpenWeatherMap не потрапить довільний рядок.</li>
-    <li><strong>DTO.</strong> Фронтенд читає <code>temp</code>, <code>feelsLike</code>, <code>windSpeed</code>, а не <code>main.temp</code> чи <code>wind.speed</code>. Якщо OpenWeatherMap змінить формат, правка буде тільки тут.</li>
-    <li><strong><code>now = Date.now</code> як параметр.</strong> «Сьогодні» залежить від годинника. Параметр дає змогу зафіксувати час у тесті.</li>
-    <li><strong><code>buildDailyForecast</code> експортується окремо.</strong> Це чиста функція: ті самі вхідні дані дають той самий результат, без мережі й побічних ефектів. Її найпростіше тестувати.</li>
-  </ul>
-</section>
-
-<!-- 7 -->
-<section id="client">
-  <h2>7. Client: адаптер до OpenWeatherMap</h2>
-  <div class="file"><div class="name"><b>src/clients/openWeatherClient.js</b><span>шар 3</span></div>
-<pre><code>// ШАР 3 — Client (патерн Adapter / Gateway).
-// Єдине місце, яке знає, ЯК говорити з OpenWeatherMap: URL, параметри, коди відповідей.
-// Повертає «сирий» JSON як є; помилки HTTP перетворює на AppError.
-import { AppError } from '../errors.js';
-
-const BASE_URL = 'https://api.openweathermap.org/data/2.5';
-const TILE_URL = 'https://tile.openweathermap.org/map'; // Weather Maps 1.0
-
-export function createOpenWeatherClient({ apiKey, fetchFn = fetch }) {
-  async function get(url, notFoundMessage) {
-    let res;
-    try {
-      res = await fetchFn(url);
-    } catch {
-      throw new AppError(502, 'Не вдалося звʼязатися з OpenWeatherMap.');
-    }
-
-    if (res.status === 401) {
-      throw new AppError(502, 'API-ключ недійсний або ще не активований (до 2 годин після створення).');
-    }
-    if (res.status === 404) throw new AppError(404, notFoundMessage);
-    if (res.status === 429) throw new AppError(429, 'Перевищено ліміт запитів, спробуй пізніше.');
-    if (!res.ok) throw new AppError(502, 'Помилка сервісу погоди.');
-    return res;
-  }
-
-  // country (необовʼязково) — код ISO, звужує пошук: q=Kyiv,UA
-  async function request(endpoint, city, country) {
-    const url = new URL(`${BASE_URL}/${endpoint}`);
-    const q = country ? `${city},${country}` : city;
-    url.search = new URLSearchParams({ q, appid: apiKey, units: 'metric', lang: 'ua' });
-    const res = await get(url, `Місто «${city}» не знайдено${country ? ` (${country})` : ''}.`);
-    return res.json();
-  }
-
-  return {
-    getCurrent: (city, country) =&gt; request('weather', city, country), // поточна погода
-    getForecast: (city, country) =&gt; request('forecast', city, country), // 5 днів × кожні 3 години
-
-    // Тайл 256×256 PNG з шаром погоди. Ключ додаємо тут, на сервері, — браузер його не бачить.
-    async getMapTile(layer, z, x, y) {
-      const url = new URL(`${TILE_URL}/${layer}/${z}/${x}/${y}.png`);
-      url.search = new URLSearchParams({ appid: apiKey });
-      const res = await get(url, 'Тайл не знайдено.');
-      return Buffer.from(await res.arrayBuffer());
-    },
-  };
-}</code></pre></div>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Відповідь OpenWeatherMap</th><th>Що кидає Client</th><th>Що побачить користувач</th></tr></thead>
-    <tbody>
-      <tr><td class="num">401</td><td><code>AppError(502)</code></td><td>ключ недійсний або ще не активований</td></tr>
-      <tr><td class="num">404</td><td><code>AppError(404)</code></td><td>місто не знайдено</td></tr>
-      <tr><td class="num">429</td><td><code>AppError(429)</code></td><td>перевищено ліміт, спробуй пізніше</td></tr>
-      <tr><td class="num">інші не-2xx</td><td><code>AppError(502)</code></td><td>помилка сервісу погоди</td></tr>
-      <tr><td>мережа недоступна</td><td><code>AppError(502)</code></td><td>не вдалося звʼязатися</td></tr>
-    </tbody>
-  </table></div>
-  <p>Для нашого клієнта 401 від провайдера означає «наш сервер налаштований неправильно», а не «користувач не авторизований». Тому віддаємо 502 (поганий шлюз), а не 401.</p>
-  <p>Той самий Client має й <code>getMapTile(layer, z, x, y)</code>: він завантажує PNG-тайл і додає <code>appid</code> на сервері. Спільна внутрішня функція <code>get()</code> обробляє 401/404/429 для всіх запитів, тож коди помилок не дублюються. Для вітру є окремий клієнт <code>openMeteoClient.js</code>: у Open-Meteo ключа немає, зате є ліміти (див. розділ 10).</p>
-  <div class="note"><strong class="t">Чому <code>fetchFn = fetch</code></strong><p>Параметр за замовчуванням дає змогу в тесті клієнта підставити фейкову функцію й перевірити, як клієнт реагує на 401, 404, 429. Такого тесту в проєкті поки немає. Це одна з вправ.</p></div>
-</section>
-
-<!-- 8 -->
-<section id="forecast">
-  <h2>8. Прогноз на 3 дні: розбір на прикладі</h2>
-  <p>Безкоштовний тариф не має «прогнозу по днях». Є <code>/forecast</code>: до 40 записів із кроком 3 години. Функція <code>buildDailyForecast</code> перетворює їх на 3 дні.</p>
-
-  <h3>Алгоритм</h3>
-  <ol>
-    <li>Для кожного запису рахуємо місцеву дату: <code>(dt + city.timezone)</code> секунд від UTC.</li>
-    <li>Записи сьогоднішнього дня відкидаємо, щоб «прогноз» не дублював блок «зараз».</li>
-    <li>Групуємо за датою (<code>Map</code> зберігає порядок вставки).</li>
-    <li>Беремо перші 3 групи.</li>
-    <li>Для кожної: мінімум і максимум температур, середня вологість, іконка і опис із запису, найближчого до 12:00.</li>
-  </ol>
-
-  <h3>Числовий приклад (з тесту)</h3>
-  <p>Зараз 2026-11-02 10:00 UTC, часовий пояс міста UTC+0.</p>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Запис (UTC)</th><th>t, °C</th><th>Що відбувається</th></tr></thead>
-    <tbody>
-      <tr><td class="num">02.11 15:00</td><td class="num">9</td><td>сьогодні → відкидається</td></tr>
-      <tr><td class="num">03.11 03:00</td><td class="num">2</td><td rowspan="2">день 1: min 2, max 8, іконка із запису 12:00</td></tr>
-      <tr><td class="num">03.11 12:00</td><td class="num">8</td></tr>
-      <tr><td class="num">04.11 12:00</td><td class="num">5</td><td>день 2</td></tr>
-      <tr><td class="num">05.11 12:00</td><td class="num">6</td><td>день 3</td></tr>
-      <tr><td class="num">06.11 12:00</td><td class="num">7</td><td>четвертий день → відкидається (<code>slice(0, 3)</code>)</td></tr>
-    </tbody>
-  </table></div>
-
-  <details>
-    <summary>Чому важливий часовий пояс міста</summary>
-    <div class="inner">
-      <p>Запис о 22:30 UTC для міста в UTC+2 це вже 00:30 <em>наступного</em> дня. Якщо рахувати дату за UTC або за часом сервера, цей запис потрапить не в той день, і min/max будуть хибні. Тому дата береться як <code>new Date((dt + timezone) * 1000).toISOString().slice(0, 10)</code>. Використовується <code>getUTCHours</code>, бо до числа вже додано зсув міста.</p>
-      <p>Є окремий тест на цей випадок.</p>
-    </div>
-  </details>
-  <details>
-    <summary>Чому нічну іконку (<code>10n</code>) замінено на денну (<code>10d</code>)</summary>
-    <div class="inner"><p>Картка дня описує день загалом. Іконка місяця на картці «завтра» збиває з пантелику, тому в коді <code>icon.replace('n', 'd')</code>.</p></div>
-  </details>
-</section>
-
-<!-- 9 -->
-<section id="map">
-  <h2>9. Карта і шари OpenWeatherMap</h2>
-  <p>Карту малює <strong>Leaflet 1.9.4</strong>, підключений із CDN із SRI-хешем (<code>integrity</code>): якщо файл на CDN підмінять, браузер його не виконає. Карта складається з двох шарів, накладених один на одний.</p>
-  <ol class="steps">
-    <li><div><strong>Підкладка</strong>: стандартні тайли OpenStreetMap. Вони світлі, тому в CSS на цей шар навішено фільтр <code>invert + hue-rotate</code>: карта виглядає темною, а шар погоди (інший клас) фільтр не отримує.</div></li>
-    <li><div><strong>Шар погоди</strong>: картинки 256×256 з OpenWeatherMap. Leaflet сам просить потрібні тайли за адресою <code>/api/tiles/{шар}/{z}/{x}/{y}.png</code>, де <code>z</code> — масштаб, а <code>x</code>, <code>y</code> — номер плитки.</div></li>
-  </ol>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Кнопка</th><th>Шар OpenWeatherMap</th></tr></thead>
-    <tbody>
-      <tr><td>Опади (зараз)</td><td><code>precipitation_new</code></td></tr>
-      <tr><td>Хмари</td><td><code>clouds_new</code></td></tr>
-      <tr><td>Вітер (кольори)</td><td><code>wind_new</code></td></tr>
-      <tr><td>Температура</td><td><code>temp_new</code></td></tr>
-      <tr><td>Тиск</td><td><code>pressure_new</code></td></tr>
-    </tbody>
-  </table></div>
-  <h3>Чому тайли йдуть через наш сервер</h3>
-  <p>Оригінальна адреса тайла містить <code>?appid=КЛЮЧ</code>. Якби браузер ходив туди напряму, ключ був би видно у DevTools. Тому <code>/api/tiles/…</code> — це <strong>проксі</strong>: сервер сам додає ключ, завантажує PNG і віддає його з <code>Cache-Control: max-age=600</code> (дані на карті змінюються повільно).</p>
-  <div class="note warn"><strong class="t">Проксі без перевірок — діра</strong><p>Якщо підставляти шар і координати в URL як є, через сервер можна піти на довільний шлях OpenWeatherMap. Тому <code>parseTile</code> пропускає лише п'ять відомих шарів, цілі числа та <code>x, y</code> у межах <code>0…2^z−1</code> (масштаб до 10). Усе інше — 400 ще до запиту назовні.</p></div>
-  <details>
-    <summary>Чому не CARTO Dark Matter</summary>
-    <div class="inner"><p>Спершу була підкладка CARTO, але вона тепер вимагає ключ: без нього тайл приходить зі статусом 200, проте з написом «API KEY REQUIRED» просто на картинці. Тому взято OpenStreetMap, якому ключ не потрібен. Його політика дозволяє лише помірне використання, для великого трафіку знадобиться платний провайдер або свій сервер тайлів.</p></div>
-  </details>
 </section>
 
 <!-- 10 -->
-<section id="wind">
-  <h2>10. Вітер і опади по сітці</h2>
-  <p>Тайли OpenWeatherMap — це готові картинки лише на поточний момент. Для анімації потрібні <strong>самі числа</strong>: вектор вітру в точках сітки й прогноз на кілька днів. Їх дає Open-Meteo (безкоштовний, без ключа, лише для некомерційного використання), а частинки малює плагін <code>leaflet-velocity</code>.</p>
-  <ol class="steps">
-    <li><div><strong>Сітка.</strong> Над Європою (від 72.5°N до 32.5°N, від 25°W до 45°E) з кроком 2.5° виходить 29×17 = 493 точки. Порядок точок важливий: рядок за рядком, <em>з півночі на південь</em>, у рядку з заходу на схід. Так вимагає формат плагіна.</div></li>
-    <li><div><strong>Client</strong> ділить сітку на порції по 100 точок, пауза між запитами 1 секунда (ліміт 600 викликів на хвилину). Для кожної точки Open-Meteo повертає 72 години: швидкість вітру в м/с, напрямок і опади (мм за годину). Усе одним запитом.</div></li>
-    <li><div><strong>Service</strong> кешує все в памʼяті на 3 години і віддає кадр на запит: <code>/api/wind?hour=N</code> (вітер) або <code>/api/precipitation?hour=N</code> (опади). <code>N=0</code> — поточна година.</div></li>
-    <li><div>З швидкості й напрямку Service рахує дві компоненти (U — на схід, V — на північ) і збирає два масиви-«GRIB» із заголовком (<code>lo1, la1, dx, dy, nx, ny</code>).</div></li>
-    <li><div>Браузер передає їх у <code>L.velocityLayer</code>, а плагін малює частинки на canvas поверх карти. Повзунок часу просить новий кадр, і <code>setData</code> оновлює шар без перебудови.</div></li>
-  </ol>
+<section id="frontend">
+  <h2>10. Фронтенд на класах</h2>
+  <p>Фронтенд лишився звичайним <code>&lt;script&gt;</code> (без модулів і збірки), тож усе в одному файлі <code>public/app.js</code> (526 рядків проти 294, бо додались коментарі й обгортки класів). <code>index.html</code> не змінювався.</p>
+  <div class="file"><div class="name"><b>public/app.js</b><span>нова версія</span></div>
+<pre><code>// Фронтенд лише малює готовий DTO з /api/weather. Уся логіка (мапінг, прогноз на 3 дні) — на сервері.
+//
+// Класи (зверху вниз від дрібного до цілого):
+//   WeatherApi      — усі fetch до нашого сервера (єдине місце, що знає URL і формат помилок)
+//   WeatherView     — картки «зараз» і «прогноз на 3 дні», рядок статусу
+//   SearchHistory   — останнє місто й країна в localStorage
+//   CountrySelect   — випадаючий список країн
+//   LayerSource     — абстрактне «джерело шару карти»
+//    ├─ TileSource        — тайли-картинки з нашого сервера
+//    └─ FrameSource       — шар із прогнозом по годинах (абстрактний)
+//        ├─ WindSource            — анімований вітер (leaflet-velocity)
+//        └─ PrecipitationSource   — опади по сітці (власний canvas-шар)
+//   LayerSwitcher   — кнопки вибору шару
+//   Legend          — легенда опадів
+//   Timeline        — повзунок часу і кнопка ▶
+//   WeatherMap      — Leaflet-карта, маркер, активний шар, запити кадрів
+//   App             — збирає все разом (composition root фронтенду)
 
-  <h3>Напрямок вітру: пастка</h3>
-  <p>Метеорологи вказують напрямок, <strong>звідки</strong> дме вітер, а не куди. Тому знаки мінус у формулі: <code>u = −швидкість·sin(напрямок)</code>, <code>v = −швидкість·cos(напрямок)</code>.</p>
+const $ = (id) =&gt; document.getElementById(id);
+const round = (n) =&gt; Math.round(n);
+const iconUrl = (code) =&gt; `https://openweathermap.org/img/wn/${code}@2x.png`;
+
+// ── Обмін з сервером ────────────────────────────────────────────
+class WeatherApi {
+  // Відповідь сервера — JSON; при помилці в ньому поле error. fallback — текст, якщо його нема.
+  async #getJson(url, fallback) {
+    const res = await fetch(url);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || fallback);
+    return body;
+  }
+
+  weather(city, country = '') {
+    const params = new URLSearchParams({ city });
+    if (country) params.set('country', country);
+    return this.#getJson(`/api/weather?${params}`, 'Щось пішло не так.');
+  }
+
+  // Кадр прогнозу на годину hour; url і title дає джерело шару
+  frame(url, hour, title) {
+    return this.#getJson(`${url}?hour=${hour}`, `Не вдалося завантажити: ${title}.`);
+  }
+
+  async countries() {
+    const res = await fetch('/api/countries');
+    if (!res.ok) throw new Error(String(res.status));
+    return res.json();
+  }
+}
+
+// ── Картки погоди ───────────────────────────────────────────────
+class WeatherView {
+  #status = $('status');
+
+  setStatus(text, isError = false) {
+    this.#status.textContent = text;
+    this.#status.classList.toggle('error', isError);
+  }
+
+  showCurrent(w) {
+    $('cur-city').textContent = `${w.city}, ${w.country}`;
+    $('cur-desc').textContent = w.description;
+    $('cur-temp').textContent = `${round(w.temp)}°C`;
+    $('cur-feels').textContent = `${round(w.feelsLike)}°C`;
+    $('cur-humidity').textContent = `${w.humidity}%`;
+    $('cur-wind').textContent = `${w.windSpeed.toFixed(1)} м/с`;
+    $('cur-pressure').textContent = `${w.pressure} гПа`;
+
+    const icon = $('cur-icon');
+    icon.src = iconUrl(w.icon);
+    icon.alt = w.description;
+    $('current').hidden = false;
+  }
+
+  showForecast(days) {
+    const box = $('days');
+    box.replaceChildren(); // createElement + textContent замість innerHTML — без XSS
+    for (const d of days) box.append(this.#dayCard(d));
+    $('forecast').hidden = days.length === 0;
+  }
+
+  #dayCard(d) {
+    const el = document.createElement('div');
+    el.className = 'day';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = new Date(`${d.date}T12:00:00Z`).toLocaleDateString('uk-UA', {
+      weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC',
+    });
+
+    const img = document.createElement('img');
+    img.src = iconUrl(d.icon);
+    img.alt = d.description;
+    img.width = img.height = 70;
+
+    const range = document.createElement('div');
+    range.className = 'range';
+    range.append(`${round(d.max)}° `);
+    const min = document.createElement('span');
+    min.textContent = `${round(d.min)}°`;
+    range.append(min);
+
+    const hum = document.createElement('div');
+    hum.className = 'hum';
+    hum.textContent = `Вологість ${d.humidity}%`;
+
+    el.append(name, img, range, hum);
+    return el;
+  }
+
+  hideAll() {
+    $('current').hidden = true;
+    $('forecast').hidden = true;
+  }
+}
+
+// ── Памʼять браузера ────────────────────────────────────────────
+class SearchHistory {
+  get lastCity() {
+    return localStorage.getItem('lastCity');
+  }
+
+  get lastCountry() {
+    return localStorage.getItem('lastCountry') || '';
+  }
+
+  save(city, country) {
+    localStorage.setItem('lastCity', city);
+    localStorage.setItem('lastCountry', country);
+  }
+}
+
+// Список країн Європи приходить із сервера (єдине джерело правди). Якщо не вдалось — лишається «Будь-яка країна».
+class CountrySelect {
+  #select = $('country');
+  #api;
+  #history;
+
+  constructor({ api, history }) {
+    this.#api = api;
+    this.#history = history;
+  }
+
+  get value() {
+    return this.#select.value;
+  }
+
+  async load() {
+    try {
+      for (const { code, name } of await this.#api.countries()) {
+        this.#select.append(new Option(name, code)); // Option → textContent, без innerHTML
+      }
+      this.#select.value = this.#history.lastCountry;
+    } catch (err) {
+      console.warn('Список країн не завантажено:', err.message);
+    }
+  }
+}
+
+// ── Джерела шарів карти ─────────────────────────────────────────
+// Підложка — стандартні тайли OpenStreetMap (без ключа), у темній темі через CSS-фільтр.
+// Шари погоди бувають двох видів:
+//  • тайли-картинки з НАШОГО сервера (/api/tiles/...) — сервер додає API-ключ, у браузері його немає;
+//  • «кадрові» шари з прогнозом по годинах: сервер віддає кадр на годину N, а браузер малює його
+//    (вітер — leaflet-velocity, опади — власний canvas-шар). Керує ними повзунок часу.
+// WeatherMap працює з будь-яким LayerSource однаково: поліморфізм замість if/else за назвою шару.
+class LayerSource {
+  constructor(name, hint) {
+    if (new.target === LayerSource) throw new TypeError('LayerSource is abstract: use a subclass');
+    this.name = name; // значення data-layer кнопки
+    this.hint = hint; // підказка під картою
+  }
+
+  get isFrame() {
+    return false;
+  }
+
+  get hasLegend() {
+    return false;
+  }
+
+  createLayer() {
+    throw new Error(`${this.constructor.name} must implement createLayer()`);
+  }
+}
+
+class TileSource extends LayerSource {
+  createLayer() {
+    return L.tileLayer(`/api/tiles/${this.name}/{z}/{x}/{y}.png`, { opacity: 0.8, maxNativeZoom: 10, maxZoom: 12 });
+  }
+}
+
+class FrameSource extends LayerSource {
+  constructor(name, hint, { url, title }) {
+    super(name, hint);
+    this.url = url; // звідки брати кадр
+    this.title = title; // для повідомлень: «Завантажую: вітер…»
+  }
+
+  get isFrame() {
+    return true;
+  }
+
+  load(api, hour) {
+    return api.frame(this.url, hour, this.title);
+  }
+
+  // body — відповідь сервера (кадр). createLayer створює шар, updateLayer міняє дані в уже створеному.
+  updateLayer() {
+    throw new Error(`${this.constructor.name} must implement updateLayer()`);
+  }
+}
+
+class WindSource extends FrameSource {
+  constructor() {
+    super('wind_anim', 'Анімований вітер над Європою (Open-Meteo). Рухай повзунок або натисни ▶ — прогноз на 3 доби.', {
+      url: '/api/wind',
+      title: 'вітер',
+    });
+  }
+
+  createLayer(body) {
+    return L.velocityLayer({
+      data: body.data,
+      displayValues: true,
+      displayOptions: {
+        velocityType: 'Вітер', position: 'bottomleft', emptyString: 'Немає даних',
+        angleConvention: 'meteoCW', speedUnit: 'ms', directionString: 'Звідки', speedString: 'Швидкість',
+      },
+      minVelocity: 0, maxVelocity: 15, velocityScale: 0.01, opacity: 0.9,
+    });
+  }
+
+  updateLayer(layer, body) {
+    layer.setData(body.data);
+  }
+}
+
+class PrecipitationSource extends FrameSource {
+  constructor() {
+    super('precip_grid', 'Опади за годину (прогноз Open-Meteo, сітка 2.5°). Рухай повзунок або натисни ▶ — прогноз на 3 доби.', {
+      url: '/api/precipitation',
+      title: 'опади',
+    });
+  }
+
+  get hasLegend() {
+    return true;
+  }
+
+  createLayer(body) {
+    return L.precipitationLayer(body);
+  }
+
+  updateLayer(layer, body) {
+    layer.setData(body);
+  }
+}
+
+// ── Елементи керування картою ───────────────────────────────────
+class LayerSwitcher {
+  #box = $('layers');
+
+  onSelect(handler) {
+    this.#box.addEventListener('click', (e) =&gt; {
+      const btn = e.target.closest('button[data-layer]');
+      if (btn) handler(btn.dataset.layer);
+    });
+  }
+
+  setActive(name) {
+    for (const btn of this.#box.children) btn.classList.toggle('active', btn.dataset.layer === name);
+  }
+}
+
+// Легенда опадів: кольорові «плашки» зі шкали шару (стоп 0 мм — прозорий, його пропускаємо)
+class Legend {
+  #box = $('legend');
+
+  build() {
+    const stops = L.PrecipitationLayer?.STOPS;
+    if (!stops) return;
+    const scale = $('legend-scale');
+    stops.slice(1).forEach(([mm, r, g, b], i, arr) =&gt; {
+      const cell = document.createElement('span');
+      cell.style.background = `rgb(${r}, ${g}, ${b})`;
+      cell.textContent = i === arr.length - 1 ? `${mm}+` : String(mm);
+      scale.append(cell);
+    });
+  }
+
+  setVisible(visible) {
+    this.#box.hidden = !visible;
+  }
+}
+
+class Timeline {
+  static DEBOUNCE_MS = 200;
+  static PLAY_STEP_MS = 1000;
+
+  #box = $('timeline');
+  #slider = $('hour');
+  #playBtn = $('play');
+  #label = $('hour-label');
+  #playTimer = null;
+  #debounce = null;
+
+  // onChange(hour) — що робити, коли користувач (або ▶) вибрав нову годину
+  constructor({ onChange }) {
+    this.#slider.addEventListener('input', () =&gt; {
+      clearTimeout(this.#debounce); // не засипаємо сервер запитами, поки рухаєш повзунок
+      this.#debounce = setTimeout(() =&gt; onChange(this.hour), Timeline.DEBOUNCE_MS);
+    });
+
+    this.#playBtn.addEventListener('click', () =&gt; {
+      if (this.#playTimer) return this.stop();
+      this.#playBtn.textContent = '⏸';
+      this.#playBtn.setAttribute('aria-label', 'Пауза');
+      this.#playTimer = setInterval(() =&gt; {
+        const next = (this.hour + 1) % (Number(this.#slider.max) + 1);
+        this.#slider.value = String(next);
+        onChange(next);
+      }, Timeline.PLAY_STEP_MS);
+    });
+  }
+
+  static #formatHour(iso) {
+    return new Date(iso).toLocaleString('uk-UA', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  get hour() {
+    return Number(this.#slider.value);
+  }
+
+  setVisible(visible) {
+    this.#box.hidden = !visible;
+  }
+
+  // hours — скільки годин прогнозу лишилось, time — ISO-час поточного кадру
+  update(hours, time) {
+    this.#slider.max = String(hours - 1);
+    this.#label.textContent = Timeline.#formatHour(time);
+  }
+
+  stop() {
+    clearInterval(this.#playTimer);
+    this.#playTimer = null;
+    this.#playBtn.textContent = '▶';
+    this.#playBtn.setAttribute('aria-label', 'Відтворити');
+  }
+}
+
+// ── Карта (Leaflet) ─────────────────────────────────────────────
+class WeatherMap {
+  #api;
+  #sources; // Map: назва шару → LayerSource
+  #timeline;
+  #switcher;
+  #legend;
+  #section = $('map-section');
+  #hint = $('map-hint');
+  #map = null;
+  #marker = null;
+  #layer = null; // шар-тайли АБО velocity/canvas-шар (одночасно лише один)
+  #active;
+  #frameSeq = 0; // номер останнього запиту кадру: відповіді-«запізненці» ігноруємо
+
+  constructor({ api, sources, initial, timeline, switcher, legend }) {
+    this.#api = api;
+    this.#sources = new Map(sources.map((s) =&gt; [s.name, s]));
+    this.#active = initial;
+    this.#timeline = timeline;
+    this.#switcher = switcher;
+    this.#legend = legend;
+    switcher.onSelect((name) =&gt; this.setLayer(name));
+  }
+
+  get #source() {
+    return this.#sources.get(this.#active);
+  }
+
+  hide() {
+    this.#section.hidden = true;
+  }
+
+  setLayer(name) {
+    this.#active = name;
+    const source = this.#source;
+    this.#switcher.setActive(name);
+    this.#hint.textContent = source.hint;
+    this.#timeline.setVisible(source.isFrame);
+    this.#legend.setVisible(source.hasLegend);
+    this.#timeline.stop();
+    this.#frameSeq++; // скасовує відповіді попередніх запитів
+    if (!this.#map) return;
+
+    if (this.#layer) this.#map.removeLayer(this.#layer);
+    this.#layer = null;
+    if (source.isFrame) this.loadFrame(this.#timeline.hour);
+    else this.#layer = source.createLayer().addTo(this.#map);
+  }
+
+  async loadFrame(hour) {
+    const source = this.#source;
+    const seq = ++this.#frameSeq;
+    // Перший запит за ~3 години заповнює кеш на сервері (кілька порцій до Open-Meteo) — це займає кілька секунд
+    if (!this.#layer) this.#hint.textContent = `Завантажую: ${source.title}… (перший раз це кілька секунд)`;
+    try {
+      const body = await source.load(this.#api, hour);
+      if (seq !== this.#frameSeq || this.#source !== source || !this.#map) return; // користувач вже перейшов далі
+
+      this.#timeline.update(body.hours, body.time);
+      if (this.#layer) source.updateLayer(this.#layer, body);
+      else this.#layer = source.createLayer(body).addTo(this.#map);
+      this.#hint.textContent = source.hint;
+    } catch (err) {
+      if (seq !== this.#frameSeq) return;
+      this.#timeline.stop();
+      this.#hint.textContent = `${source.title[0].toUpperCase()}${source.title.slice(1)}: ${err.message}`;
+    }
+  }
+
+  // Показує карту в точці міста. Кидає помилку, якщо координат нема: App сам вирішує, що з цим робити.
+  show({ lat, lon, city }) {
+    if (typeof L === 'undefined') return; // Leaflet не завантажився (немає інтернету до CDN)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('Сервер не повернув координати (перезапусти його).');
+    this.#section.hidden = false; // спершу показуємо блок — Leaflet має знати розмір контейнера
+
+    if (!this.#map) {
+      this.#map = L.map('map', { worldCopyJump: true }).setView([lat, lon], 6);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 12,
+        className: 'base-tiles', // у style.css цей шар затемнюється фільтром
+        attribution: '&amp;copy; &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap&lt;/a&gt; | Погода: &lt;a href="https://openweathermap.org"&gt;OpenWeatherMap&lt;/a&gt;',
+      }).addTo(this.#map);
+      this.#marker = L.marker([lat, lon]).addTo(this.#map);
+      this.setLayer(this.#active);
+    } else {
+      this.#map.setView([lat, lon], this.#map.getZoom());
+      this.#marker.setLatLng([lat, lon]);
+    }
+    this.#marker.bindTooltip(city);
+    this.#map.invalidateSize();
+  }
+}
+
+// ── Збірка ──────────────────────────────────────────────────────
+class App {
+  #form = $('search');
+  #input = $('city');
+  #api = new WeatherApi();
+  #view = new WeatherView();
+  #history = new SearchHistory();
+  #countries = new CountrySelect({ api: this.#api, history: this.#history });
+  #map;
+
+  constructor() {
+    // Ін'єкція залежностей: Timeline не знає про карту, а карта — про DOM повзунка; їх зв'язує тільки колбек
+    const timeline = new Timeline({ onChange: (hour) =&gt; this.#map.loadFrame(hour) });
+    const legend = new Legend();
+    legend.build();
+    this.#map = new WeatherMap({
+      api: this.#api,
+      sources: [
+        new WindSource(),
+        new PrecipitationSource(),
+        new TileSource('precipitation_new', 'Опади зараз (OpenWeatherMap): від світлого (слабкі) до насиченого (сильні).'),
+        new TileSource('clouds_new', 'Хмарність: чим біліше й щільніше, тим більше хмар.'),
+        new TileSource('wind_new', 'Швидкість вітру: чим насиченіший колір, тим сильніший вітер.'),
+        new TileSource('temp_new', 'Температура повітря: холодні тони → теплі.'),
+        new TileSource('pressure_new', 'Атмосферний тиск: низький та високий — різні кольори.'),
+      ],
+      initial: 'wind_anim',
+      timeline,
+      switcher: new LayerSwitcher(),
+      legend,
+    });
+  }
+
+  start() {
+    this.#map.setLayer('wind_anim'); // підказка й повзунок видно ще до першого пошуку; карти ще нема
+    this.#form.addEventListener('submit', (e) =&gt; {
+      e.preventDefault();
+      const city = this.#input.value.trim();
+      if (city) this.search(city, this.#countries.value);
+    });
+
+    this.#countries.load().then(() =&gt; {
+      const last = this.#history.lastCity;
+      if (last) {
+        this.#input.value = last;
+        this.search(last, this.#countries.value);
+      }
+    });
+  }
+
+  async search(city, country = '') {
+    const button = this.#form.querySelector('button');
+    button.disabled = true;
+    this.#view.setStatus('Завантаження…');
+
+    try {
+      const data = await this.#api.weather(city, country);
+      this.#view.showCurrent(data);
+      this.#view.showForecast(data.forecast);
+      this.#view.setStatus('');
+      // Карта — додаткова: якщо з нею щось не так, погода й пошук мають працювати далі
+      try {
+        this.#map.show({ ...data.coord, city: data.city });
+      } catch (mapErr) {
+        console.error('Карта не відобразилась:', mapErr);
+        this.#map.hide();
+      }
+      this.#history.save(city, country);
+    } catch (err) {
+      this.#view.hideAll();
+      this.#map.hide();
+      this.#view.setStatus(err.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+}
+
+new App().start();</code></pre></div>
+  <ul>
+    <li><strong>Джерела шарів — поліморфізм.</strong> Раніше був об'єкт <code>FRAME_LAYERS</code> і перевірки <code>name in FRAME_LAYERS</code>, <code>name !== 'precip_grid'</code>. Тепер у <code>WeatherMap.setLayer()</code> немає жодної назви шару: він питає у джерела <code>isFrame</code>, <code>hasLegend</code>, <code>hint</code> і викликає <code>createLayer()</code> / <code>updateLayer()</code>. Додати шар «температура по сітці» значить написати ще один клас-нащадок.</li>
+    <li><strong>Абстрактні <code>LayerSource</code> і <code>FrameSource</code></strong> не можна створити напряму; тайловий і кадрові шари відрізняються тим, що перші не мають <code>load()</code> і повзунка.</li>
+    <li><strong>Одна відповідальність на клас.</strong> <code>WeatherApi</code> — єдине місце з <code>fetch</code>; <code>WeatherView</code> лише малює; <code>Timeline</code> керує повзунком і кнопкою ▶; <code>SearchHistory</code> — єдиний, хто знає про <code>localStorage</code>.</li>
+    <li><strong>Ін'єкція колбека.</strong> <code>Timeline</code> не знає про карту: <code>App</code> передає йому <code>onChange: (hour) =&gt; map.loadFrame(hour)</code>. Тому повзунок можна використати і з іншим споживачем.</li>
+    <li><strong>Захист від «запізнілих» відповідей збережено.</strong> <code>#frameSeq</code> збільшується при кожному запиті й перемиканні шару; відповідь, номер якої застарів, ігнорується. Debounce повзунка 200 мс і крок відтворення 1 с стали константами <code>Timeline</code>.</li>
+    <li><strong>Карта — додаткова.</strong> <code>App.search()</code> обгортає <code>map.show()</code> у власний <code>try/catch</code>: помилка карти ховає лише карту, а погода й пошук працюють.</li>
+    <li><strong>Приватні поля й <code>this</code>.</strong> Обробники подій у конструкторах — стрілкові функції, тому <code>this</code> лишається класом.</li>
+  </ul>
+  <div class="note warn"><strong class="t">Debounce тепер у <code>Timeline</code></strong>
+    <p>У задачі згадувалось, що debounce живе у <code>WeatherMap</code>. Я поклав його в <code>Timeline</code>: він власник слайдера, а карта отримує вже «заспокоєні» зміни. Для користувача поведінка та сама (перевірено: 5 швидких рухів = 1 запит <code>hour=34</code>).</p></div>
+</section>
+
+<!-- 11 -->
+<section id="changes">
+  <h2>11. Що змінилось у поведінці</h2>
+  <p>Задум був «поведінка не змінюється». Є дві навмисні відмінності, обидві на шляхах, де раніше був збій.</p>
   <div class="tablewrap"><table>
-    <thead><tr><th>Вітер</th><th>Напрямок</th><th>u (на схід)</th><th>v (на північ)</th></tr></thead>
+    <thead><tr><th>Що</th><th>Було</th><th>Стало</th></tr></thead>
     <tbody>
-      <tr><td>західний, 5 м/с</td><td class="num">270°</td><td class="num">+5</td><td class="num">0</td></tr>
-      <tr><td>північний, 5 м/с</td><td class="num">0°</td><td class="num">0</td><td class="num">−5</td></tr>
+      <tr><td><code>GET /%zz</code> (некоректне %-кодування)</td><td><code>decodeURIComponent</code> кидав виняток у <code>staticHandler</code>, процес міг завершитись</td><td><code>StaticHandler</code> відповідає <strong>400</strong> <code>Bad request</code>; сервер працює далі (тест є)</td></tr>
+      <tr><td>Не розібрався URL (дивний <code>Host</code>)</td><td><code>new URL()</code> у <code>createServer</code> без захисту</td><td><code>Router.handle()</code> ловить помилку, пише в лог і відповідає <strong>400</strong> (тест є)</td></tr>
     </tbody>
   </table></div>
-  <p>Західний вітер несе повітря на схід (u додатне), північний — на південь (v від'ємне). Обидва випадки перевіряє тест <code>toUV</code>.</p>
+  <div class="note"><strong class="t">Чому перша відмінність не видна у 41 запиті звірки</strong>
+    <p>У наборі запитів нема <code>/%zz</code>: на старому сервері він міг упасти й обірвати звірку. Поведінку нового я перевірив лише юніт-тестом і не відтворював падіння на старому коді.</p></div>
+  <div class="note warn"><strong class="t">Відоме обмеження, яке я не чіпав</strong>
+    <p>Якщо Leaflet не завантажився з CDN, у <code>Legend.build()</code> зверненням до <code>L.PrecipitationLayer</code> виникне <code>ReferenceError</code> ще до першого пошуку: так було й у старому <code>buildLegend()</code>. Це випливає з читання коду, у браузері без інтернету я не перевіряв. Виправлення було б зміною поведінки, тому без твого слова воно не зроблене.</p></div>
+</section>
 
-  <div class="file"><div class="name"><b>src/clients/openMeteoClient.js</b><span>шар 3</span></div>
-<pre><code>// ШАР 3 — Client для Open-Meteo: прогноз по сітці точок (безкоштовний, без ключа, лише некомерційне використання).
-// Ліміти безкоштовного API: 600 викликів/хв, 10 000/добу; кожна точка в запиті рахується як виклик —
-// тому сервіс над нами кешує сітку та ділить її на порції.
-import { AppError } from '../errors.js';
-
-const URL_FORECAST = 'https://api.open-meteo.com/v1/forecast';
-
-export function createOpenMeteoClient({ fetchFn = fetch } = {}) {
-  return {
-    // points: [{ lat, lon }, …]. Повертає масив (по одному елементу на точку, в тому ж порядку):
-    //   { hourly: { time: [unix-секунди], wind_speed_10m: [м/с], wind_direction_10m: [° звідки дме],
-    //               precipitation: [мм за попередню годину] } }
-    // Кілька змінних в одному запиті не збільшують кількість викликів: рахується кожна точка.
-    async getGrid(points, hours) {
-      const url = new URL(URL_FORECAST);
-      url.search = new URLSearchParams({
-        latitude: points.map((p) =&gt; p.lat).join(','),
-        longitude: points.map((p) =&gt; p.lon).join(','),
-        hourly: 'wind_speed_10m,wind_direction_10m,precipitation',
-        wind_speed_unit: 'ms',
-        forecast_hours: String(hours),
-        timeformat: 'unixtime',
-        cell_selection: 'nearest', // без «підлаштування під сушу» — над морем лишаємось над морем
-      });
-
-      let res;
-      try {
-        res = await fetchFn(url);
-      } catch {
-        throw new AppError(502, 'Не вдалося звʼязатися з Open-Meteo.');
-      }
-      if (res.status === 429) throw new AppError(429, 'Open-Meteo: перевищено ліміт запитів, спробуй пізніше.');
-      if (!res.ok) throw new AppError(502, 'Помилка сервісу вітру (Open-Meteo).');
-
-      const body = await res.json();
-      return Array.isArray(body) ? body : [body]; // для однієї точки API повертає обʼєкт, а не масив
-    },
-  };
-}</code></pre></div>
-  <div class="file"><div class="name"><b>src/services/gridService.js</b><span>шар 2</span></div>
+<!-- 12 -->
+<section id="before">
+  <h2>12. Було: стара версія для порівняння</h2>
+  <details>
+    <summary>Стара <code>src/services/gridService.js</code> (гілка <code>main</code>): уся логіка сітки у функціях і замиканні</summary>
+    <div class="inner">
+      <div class="file"><div class="name"><b>src/services/gridService.js</b><span>гілка main</span></div>
 <pre><code>// ШАР 2 — Service для карт по сітці: анімований вітер і опади.
 // Бере прогноз по сітці над Європою ОДНИМ набором запитів до Open-Meteo, кешує його
 // (щоб не вичерпати ліміти) і віддає по одній годині:
@@ -867,216 +2024,139 @@ export function createGridService({ client, now = Date.now, sleep = sleepMs, pau
     },
   };
 }</code></pre></div>
-
-  <h3>Шар опадів: власний canvas-шар</h3>
-  <p>Для вітру є готовий плагін, а для опадів його немає, тому шар написано самостійно (<code>public/precipitationLayer.js</code>). Сервер віддає лише плоский масив чисел і опис сітки, а малює браузер.</p>
-  <ol class="steps">
-    <li><div>Для кожної точки екрана (з кроком 4 пікселі) Leaflet рахує <strong>широту й довготу</strong>. Так правильно враховується проєкція карти: градус довготи й широти на різних широтах займає різну кількість пікселів.</div></li>
-    <li><div>Між чотирма найближчими вузлами сітки значення <strong>інтерполюється білінійно</strong>, тож виходять плавні плями замість квадратів 2.5°. Біля краю сітки прозорість плавно зменшується, щоб не було різкої межі.</div></li>
-    <li><div>Значення (мм/год) переходить у колір за шкалою, як на метеорадарах: від блакитного (0.1) через зелений і жовтий до червоного та фіолетового (20+). Ту саму шкалу використовує легенда під картою.</div></li>
-    <li><div>Спочатку малюється маленький «знімок» (одна клітинка = один піксель), який потім розтягується на весь canvas зі згладжуванням. Це швидко: на кадр виходить близько 16 тисяч вибірок.</div></li>
-  </ol>
-  <div class="file"><div class="name"><b>public/precipitationLayer.js</b><span>canvas-шар</span></div>
-<pre><code>// Canvas-шар опадів для Leaflet. Отримує кадр { grid, values } із /api/precipitation
-// і малює плавну кольорову карту: для кожної точки екрана береться її широта/довгота,
-// а значення інтерполюється (білінійно) між чотирма найближчими вузлами сітки 2.5°.
-// Так видно плавні плями замість крупних квадратів, і при цьому правильно враховано проєкцію карти.
-(() =&gt; {
-  if (typeof L === 'undefined') return; // Leaflet не завантажився — шар просто не зʼявиться
-
-  // [мм/год, R, G, B, прозорість 0..1] — шкала як на метеорадарах: від блакитного до фіолетового
-  const STOPS = [
-    [0, 120, 190, 255, 0],
-    [0.1, 110, 180, 255, 0.35],
-    [0.5, 50, 120, 255, 0.65],
-    [1, 40, 200, 120, 0.75],
-    [2.5, 240, 230, 60, 0.8],
-    [5, 255, 150, 30, 0.85],
-    [10, 230, 50, 40, 0.9],
-    [20, 200, 40, 200, 0.92],
-  ];
-
-  // Колір для значення мм/год: лінійно між сусідніми «стопами». Повертає [r, g, b, a(0..255)].
-  function colorAt(mm) {
-    if (!(mm &gt; STOPS[0][0])) return [0, 0, 0, 0];
-    const last = STOPS[STOPS.length - 1];
-    if (mm &gt;= last[0]) return [last[1], last[2], last[3], Math.round(last[4] * 255)];
-    let i = 1;
-    while (STOPS[i][0] &lt; mm) i++;
-    const [m0, r0, g0, b0, a0] = STOPS[i - 1];
-    const [m1, r1, g1, b1, a1] = STOPS[i];
-    const t = (mm - m0) / (m1 - m0);
-    return [r0 + (r1 - r0) * t, g0 + (g1 - g0) * t, b0 + (b1 - b0) * t, (a0 + (a1 - a0) * t) * 255];
-  }
-
-  // Значення в довільній точці: інтерполяція між 4 вузлами. Поза сіткою → null.
-  // Біля краю сітки (в межах одного кроку) значення плавно «гаснуть», щоб не було різкого обрізання.
-  function sample(frame, lat, lon) {
-    const { la1, lo1, dx, dy, nx, ny } = frame.grid;
-    const fr = (la1 - lat) / dy; // дробовий номер рядка (рядки йдуть з півночі на південь)
-    const fc = (lon - lo1) / dx; // дробовий номер колонки
-    if (fr &lt; 0 || fc &lt; 0 || fr &gt; ny - 1 || fc &gt; nx - 1) return null;
-
-    const r0 = Math.min(Math.floor(fr), ny - 2);
-    const c0 = Math.min(Math.floor(fc), nx - 2);
-    const tr = fr - r0;
-    const tc = fc - c0;
-    const v = frame.values;
-    const a = v[r0 * nx + c0];
-    const b = v[r0 * nx + c0 + 1];
-    const c = v[(r0 + 1) * nx + c0];
-    const d = v[(r0 + 1) * nx + c0 + 1];
-    const value = (a * (1 - tc) + b * tc) * (1 - tr) + (c * (1 - tc) + d * tc) * tr;
-    const fade = Math.min(1, fr, fc, ny - 1 - fr, nx - 1 - fc);
-    return { value, fade };
-  }
-
-  const normalizeLon = (lon) =&gt; ((((lon + 180) % 360) + 360) % 360) - 180; // карта може бути прокручена за 180°
-
-  L.PrecipitationLayer = L.Layer.extend({
-    options: { pane: 'overlayPane', step: 4 }, // step — розмір «клітинки» вибірки в пікселях
-
-    initialize(frame, options) {
-      L.setOptions(this, options);
-      this._frame = frame;
-    },
-
-    setData(frame) {
-      this._frame = frame;
-      this._draw();
-    },
-
-    onAdd(map) {
-      this._canvas = L.DomUtil.create('canvas', 'precip-canvas leaflet-zoom-hide'); // ховається на час зуму
-      this._canvas.style.pointerEvents = 'none';
-      map.getPane(this.options.pane).appendChild(this._canvas);
-      map.on('moveend zoomend resize', this._reset, this);
-      this._reset();
-    },
-
-    onRemove(map) {
-      map.off('moveend zoomend resize', this._reset, this);
-      this._canvas.remove();
-    },
-
-    // Полотно завжди розміром з видиму частину карти й стоїть у її лівому верхньому куті.
-    _reset() {
-      const size = this._map.getSize();
-      this._canvas.width = size.x;
-      this._canvas.height = size.y;
-      L.DomUtil.setPosition(this._canvas, this._map.containerPointToLayerPoint([0, 0]));
-      this._draw();
-    },
-
-    _draw() {
-      if (!this._frame || !this._map) return;
-      const { step } = this.options;
-      const w = this._canvas.width;
-      const h = this._canvas.height;
-      const sw = Math.ceil(w / step);
-      const sh = Math.ceil(h / step);
-
-      // Малюємо на маленькому «знімку» (одна клітинка = один піксель), потім розтягуємо зі згладжуванням
-      const small = document.createElement('canvas');
-      small.width = sw;
-      small.height = sh;
-      const sctx = small.getContext('2d');
-      const img = sctx.createImageData(sw, sh);
-
-      for (let y = 0; y &lt; sh; y++) {
-        for (let x = 0; x &lt; sw; x++) {
-          const ll = this._map.containerPointToLatLng([x * step + step / 2, y * step + step / 2]);
-          const s = sample(this._frame, ll.lat, normalizeLon(ll.lng));
-          if (!s) continue;
-          const [r, g, b, a] = colorAt(s.value);
-          const i = (y * sw + x) * 4;
-          img.data[i] = r;
-          img.data[i + 1] = g;
-          img.data[i + 2] = b;
-          img.data[i + 3] = a * s.fade;
-        }
-      }
-      sctx.putImageData(img, 0, 0);
-
-      const ctx = this._canvas.getContext('2d');
-      ctx.clearRect(0, 0, w, h);
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(small, 0, 0, sw, sh, 0, 0, w, h);
-    },
-  });
-
-  L.PrecipitationLayer.STOPS = STOPS;
-  L.precipitationLayer = (frame, options) =&gt; new L.PrecipitationLayer(frame, options);
-})();</code></pre></div>
-  <details>
-    <summary>Що Open-Meteo називає «опадами за годину»</summary>
-    <div class="inner"><p>Змінна <code>precipitation</code> — сума опадів (дощ, злива, сніг у водному еквіваленті) <em>за попередню годину</em>, у мм. Для години 0 вона описує те, що випало <em>до</em> цього моменту. Якщо значення немає (<code>null</code>), Service підставляє 0 (є тест).</p></div>
-  </details>
-
-  <h3>Ліміти Open-Meteo і чому кеш на 3 години</h3>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Ліміт безкоштовного API</th><th>Значення</th></tr></thead>
-    <tbody>
-      <tr><td>викликів за хвилину</td><td class="num">600</td></tr>
-      <tr><td>викликів за годину</td><td class="num">5 000</td></tr>
-      <tr><td>викликів за добу</td><td class="num">10 000</td></tr>
-      <tr><td>коли дозволено</td><td>лише некомерційне використання</td></tr>
-    </tbody>
-  </table></div>
-  <p>Кожна точка в запиті рахується як окремий виклик. Одне оновлення сітки — це ≈493 виклики. Кеш на 3 години дає до 8 оновлень на добу, тобто ≈3 900 викликів: у межах ліміту. Модель прогнозу все одно оновлюється не частіше, ніж раз на кілька годин. Вітер і опади беруться з <strong>одного набору запитів</strong> (одна сітка, один кеш), тож другий шар не додає жодного виклику.</p>
-  <div class="note warn"><strong class="t">Кожен перезапуск сервера скидає кеш</strong><p>Кеш лежить у памʼяті, тож після <code>npm start</code> перший запит знову витратить ≈493 виклики. Під час розробки це можна не помітити, але 20 перезапусків за день уже дорівнюють половині добового ліміту.</p></div>
-
-  <details>
-    <summary>Навіщо <code>inflight</code>: один запит назовні на багатьох відвідувачів</summary>
-    <div class="inner"><p>Коли кеш застарів, перші кілька запитів приходять майже одночасно. Без <code>inflight</code> кожен запустив би свої 5 порцій до Open-Meteo. З ним усі чекають на один спільний <code>Promise</code>. Тест «одночасні запити ділять один виклик» це перевіряє.</p></div>
+      <p>Усе разом: геометрія сітки, перетворення вітру, формат leaflet-velocity, кеш і спільний запит. Працює, але щоб перевірити окремо хоча б зсув години, треба збирати весь сервіс. У новій версії кожне поняття окремий клас зі своїми тестами.</p>
+    </div>
   </details>
   <details>
-    <summary>Що, якщо Open-Meteo не відповідає</summary>
-    <div class="inner"><p>Якщо старий кеш є, Service віддає його й відкладає наступну спробу на 10 хвилин, а не б'є по сервісу на кожен запит. Якщо кешу ще немає, користувач бачить помилку під картою, а решта сторінки працює.</p></div>
+    <summary>Старий <code>src/controllers/weatherController.js</code>: чотири фабрики з однаковим <code>try/catch</code></summary>
+    <div class="inner">
+      <div class="file"><div class="name"><b>src/controllers/weatherController.js</b><span>гілка main</span></div>
+<pre><code>// ШАР 1 — Controller (HTTP-шар). Читає запит, викликає сервіс, формує відповідь.
+// Жодної бізнес-логіки: лише «HTTP in → service → HTTP out».
+import { AppError } from '../errors.js';
+
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(body));
+}
+
+function sendError(res, err) {
+  if (err instanceof AppError) return sendJson(res, err.status, { error: err.message });
+  console.error(err); // непередбачена помилка — деталі лише в лог, клієнту загальне повідомлення
+  sendJson(res, 500, { error: 'Внутрішня помилка сервера.' });
+}
+
+export function createWeatherController({ weatherService }) {
+  return async function getWeather(req, res, url) {
+    try {
+      const { searchParams } = url;
+      const data = await weatherService.getWeather(searchParams.get('city'), searchParams.get('country'));
+      sendJson(res, 200, data);
+    } catch (err) {
+      sendError(res, err);
+    }
+  };
+}
+
+// Обробник кадру по сітці: GET ...?hour=N → JSON. getFrame — функція сервісу (getWindFrame, getPrecipitationFrame):
+//   /api/wind          → { hour, hours, time, data: [U, V] }   для анімації вітру
+//   /api/precipitation → { hour, hours, time, grid, values }   для шару опадів
+export function createFrameController(getFrame) {
+  return async function handleFrame(req, res, url) {
+    try {
+      sendJson(res, 200, await getFrame(url.searchParams.get('hour')));
+    } catch (err) {
+      sendError(res, err);
+    }
+  };
+}
+
+// GET /api/countries → [{ code: 'UA', name: 'Україна' }, …] для випадаючого списку
+export function createCountriesController({ weatherService }) {
+  return function getCountries(req, res) {
+    sendJson(res, 200, weatherService.getCountries());
+  };
+}
+
+// GET /api/tiles/&lt;layer&gt;/&lt;z&gt;/&lt;x&gt;/&lt;y&gt;.png → PNG-тайл шару погоди (проксі до OpenWeatherMap).
+const TILE_ROUTE = /^\/api\/tiles\/([a-z_]+)\/(\d+)\/(\d+)\/(\d+)\.png$/;
+
+export function createTileController({ weatherService }) {
+  return async function getTile(req, res, match) {
+    try {
+      const [, layer, z, x, y] = match;
+      const png = await weatherService.getMapTile({ layer, z, x, y });
+      // Дані на карті оновлюються рідко — браузер може кешувати тайл 10 хвилин
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=600' });
+      res.end(png);
+    } catch (err) {
+      sendError(res, err);
+    }
+  };
+}
+
+export const matchTileRoute = (pathname) =&gt; pathname.match(TILE_ROUTE);</code></pre></div>
+    </div>
   </details>
   <details>
-    <summary>Чому година рахується від поточного часу, а не від початку кешу</summary>
-    <div class="inner"><p>Кеш може бути отриманий 3 години тому. Тоді «година 0» мала б показувати вітер трьох-годинної давності. Service рахує зсув <code>base = (зараз − початок прогнозу) / 1 год</code> і додає його до запитаної години, а <code>hours</code> у відповіді — це кількість годин, що реально лишилась.</p></div>
+    <summary>Старий <code>server.js</code>: маршрути ланцюжком <code>if</code></summary>
+    <div class="inner">
+      <div class="file"><div class="name"><b>server.js</b><span>гілка main</span></div>
+<pre><code>// Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо шари між собою.
+//   HTTP → controller → service → client → OpenWeatherMap
+import http from 'node:http';
+import { loadConfig } from './src/config.js';
+import { createOpenWeatherClient } from './src/clients/openWeatherClient.js';
+import { createWeatherService } from './src/services/weatherService.js';
+import {
+  createWeatherController,
+  createTileController,
+  createCountriesController,
+  createFrameController,
+  matchTileRoute,
+} from './src/controllers/weatherController.js';
+import { createOpenMeteoClient } from './src/clients/openMeteoClient.js';
+import { createGridService } from './src/services/gridService.js';
+import { createStaticHandler } from './src/staticHandler.js';
+
+let config;
+try {
+  config = loadConfig();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+
+// Dependency Injection вручну: кожен шар отримує те, що йому потрібно, через аргументи.
+const client = createOpenWeatherClient({ apiKey: config.apiKey });
+const weatherService = createWeatherService({ client });
+const getWeather = createWeatherController({ weatherService });
+const getTile = createTileController({ weatherService });
+const getCountries = createCountriesController({ weatherService });
+const gridService = createGridService({ client: createOpenMeteoClient() });
+const getWind = createFrameController(gridService.getWindFrame);
+const getPrecipitation = createFrameController(gridService.getPrecipitationFrame);
+const serveStatic = createStaticHandler(config.publicDir);
+
+http
+  .createServer((req, res) =&gt; {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (req.method !== 'GET') return void res.writeHead(405).end();
+    if (url.pathname === '/api/weather') return void getWeather(req, res, url);
+    if (url.pathname === '/api/wind') return void getWind(req, res, url);
+    if (url.pathname === '/api/precipitation') return void getPrecipitation(req, res, url);
+    if (url.pathname === '/api/countries') return void getCountries(req, res);
+    const tile = matchTileRoute(url.pathname);
+    if (tile) return void getTile(req, res, tile);
+    serveStatic(req, res, url);
+  })
+  .listen(config.port, () =&gt; console.log(`Weather Dashboard: http://localhost:${config.port}`));</code></pre></div>
+    </div>
   </details>
-</section>
-
-<!-- 11 -->
-<section id="countries">
-  <h2>11. Вибір країни і міста</h2>
-  <p>Біля поля міста є список із 45 країн Європи. Назви міст у світі повторюються (Paris є і у Франції, і в США), тому до запиту додається код країни: <code>q=Paris,FR</code>.</p>
-  <div class="file"><div class="name"><b>src/data/europeCountries.js</b><span>дані</span></div>
-<pre><code>// Країни Європи: код ISO 3166-1 alpha-2 (його розуміє OpenWeatherMap) → назва українською.
-// Єдине джерело правди: сервіс по ньому перевіряє код країни, а фронтенд будує список через /api/countries.
-// Трансконтинентальні (Туреччина, Грузія, Вірменія, Азербайджан, Казахстан) не включені.
-export const EUROPE_COUNTRIES = {
-  AL: 'Албанія', AD: 'Андорра', AT: 'Австрія', BY: 'Білорусь', BE: 'Бельгія',
-  BA: 'Боснія і Герцеговина', BG: 'Болгарія', HR: 'Хорватія', CY: 'Кіпр', CZ: 'Чехія',
-  DK: 'Данія', EE: 'Естонія', FI: 'Фінляндія', FR: 'Франція', DE: 'Німеччина',
-  GR: 'Греція', HU: 'Угорщина', IS: 'Ісландія', IE: 'Ірландія', IT: 'Італія',
-  LV: 'Латвія', LI: 'Ліхтенштейн', LT: 'Литва', LU: 'Люксембург', MT: 'Мальта',
-  MD: 'Молдова', MC: 'Монако', ME: 'Чорногорія', NL: 'Нідерланди', MK: 'Північна Македонія',
-  NO: 'Норвегія', PL: 'Польща', PT: 'Португалія', RO: 'Румунія', RU: 'Росія',
-  SM: 'Сан-Марино', RS: 'Сербія', SK: 'Словаччина', SI: 'Словенія', ES: 'Іспанія',
-  SE: 'Швеція', CH: 'Швейцарія', UA: 'Україна', GB: 'Велика Британія', VA: 'Ватикан',
-};
-
-// Масив для фронтенду, відсортований за алфавітом (українська колація).
-export const EUROPE_LIST = Object.entries(EUROPE_COUNTRIES)
-  .map(([code, name]) =&gt; ({ code, name }))
-  .sort((a, b) =&gt; a.name.localeCompare(b.name, 'uk'));</code></pre></div>
-  <ul>
-    <li><strong>Єдине джерело правди.</strong> Список лежить лише на сервері. Фронтенд будує <code>&lt;select&gt;</code> із відповіді <code>/api/countries</code>, а Service перевіряє код за тим самим об'єктом. Додати країну можна в одному місці.</li>
-    <li><strong>Білий список.</strong> Код країни проходить <code>toUpperCase()</code> і має бути ключем <code>EUROPE_COUNTRIES</code>. Рядок на кшталт <code>UA,PL</code> чи <code>US</code> дає 400 ще до запиту.</li>
-    <li><strong>Країна необов'язкова.</strong> Значення «Будь-яка країна» просто не додає код, як було раніше.</li>
-    <li><strong>Без трансконтинентальних.</strong> Туреччину, Грузію, Вірменію, Азербайджан і Казахстан не включено. Це межа Європи, яку треба вибрати, а не відповідь, яку знає код.</li>
-    <li>Якщо міста немає в країні, відповідь точна: «Місто Lviv не знайдено (PL)».</li>
-  </ul>
-</section>
-
-<!-- 12 -->
-<section id="frontend">
-  <h2>12. Фронтенд</h2>
-  <div class="file"><div class="name"><b>public/app.js</b><span>малює DTO</span></div>
+  <details>
+    <summary>Старий <code>public/app.js</code>: функції та глобальні змінні</summary>
+    <div class="inner">
+      <div class="file"><div class="name"><b>public/app.js</b><span>гілка main</span></div>
 <pre><code>// Фронтенд лише малює готовий DTO з /api/weather. Уся логіка (мапінг, прогноз на 3 дні) — на сервері.
 const $ = (id) =&gt; document.getElementById(id);
 
@@ -1371,370 +2451,78 @@ loadCountries().then(() =&gt; {
     loadWeather(last, countrySel.value);
   }
 });</code></pre></div>
-  <ul>
-    <li><strong>Логіки погоди немає.</strong> Дані вже підготовлені сервером, фронтенд їх лише показує.</li>
-    <li><strong>Без <code>innerHTML</code>.</strong> Усе, що прийшло з API (назва міста, опис), вставляється через <code>textContent</code>. Якщо в даних опиниться <code>&lt;script&gt;</code>, браузер покаже його як текст (захист від XSS).</li>
-    <li><code>finally</code> повертає кнопку в активний стан за будь-якого результату.</li>
-    <li><code>localStorage</code> пам'ятає останнє місто й країну: після перезавантаження сторінка одразу показує його погоду.</li>
-    <li><strong>Карта — додаткова.</strong> <code>renderMap</code> виконується у власному <code>try/catch</code>. Якщо Leaflet не завантажився з CDN або сервер не повернув координати, блок карти ховається, а пошук і картки погоди працюють далі. Раніше помилка карти потрапляла в загальний <code>catch</code> і «ламала» весь пошук.</li>
-    <li><strong>Номер запиту <code>windSeq</code>.</strong> Відповідь від сервера може прийти вже після того, як користувач рушив повзунок далі чи змінив шар. Кожен запит має номер, а застарілі відповіді ігноруються.</li>
-    <li><strong>Debounce 200 мс на повзунку.</strong> Поки його тягнуть, сервер не засипається запитами: надсилається лише останнє положення. Кнопка ▶ міняє годину раз на секунду.</li>
-    <li>Список країн додається через <code>new Option(name, code)</code>, а не через <code>innerHTML</code>.</li>
-    <li><strong>Один повзунок для кількох шарів.</strong> Вітер і опади описані в об'єкті <code>FRAME_LAYERS</code>: адреса кадру, як створити шар, як оновити його новим кадром. Функція <code>loadFrame</code> однакова для обох, а новий шар такого типу додається одним записом.</li>
-    <li>Ім'я дня тижня формує <code>toLocaleDateString('uk-UA', ...)</code> з <code>timeZone: 'UTC'</code>, бо <code>date</code> від сервера вже локальна дата міста і її не треба зсувати вдруге.</li>
-  </ul>
-</section>
-
-<!-- 10 -->
-<section id="tests">
-  <h2>13. Тести</h2>
-  <div class="file"><div class="name"><b>test/weatherService.test.js</b><span>npm test</span></div>
-<pre><code>// Запуск: npm test  (вбудований node:test, без залежностей)
-// Бачиш перевагу шарів: сервіс тестуємо БЕЗ мережі, підставивши фейковий client.
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { createWeatherService, buildDailyForecast, parseTile } from '../src/services/weatherService.js';
-import { AppError } from '../src/errors.js';
-
-const NOW = Date.parse('2026-11-02T10:00:00Z');
-
-// запис прогнозу: дата-час UTC, температура
-const item = (iso, temp, icon = '10n') =&gt; ({
-  dt: Date.parse(iso) / 1000,
-  main: { temp, humidity: 80 },
-  weather: [{ icon, description: 'дощ' }],
-});
-
-const forecast = {
-  city: { timezone: 0 },
-  list: [
-    item('2026-11-02T15:00:00Z', 9), // сьогодні — має бути відкинуто
-    item('2026-11-03T03:00:00Z', 2),
-    item('2026-11-03T12:00:00Z', 8, '01d'),
-    item('2026-11-04T12:00:00Z', 5),
-    item('2026-11-05T12:00:00Z', 6),
-    item('2026-11-06T12:00:00Z', 7), // 4-й день — відкидаємо
-  ],
-};
-
-test('buildDailyForecast: пропускає сьогодні й повертає рівно 3 дні', () =&gt; {
-  const days = buildDailyForecast(forecast, NOW);
-  assert.deepEqual(days.map((d) =&gt; d.date), ['2026-11-03', '2026-11-04', '2026-11-05']);
-});
-
-test('buildDailyForecast: рахує min/max та бере денну іконку найближчу до полудня', () =&gt; {
-  const [first] = buildDailyForecast(forecast, NOW);
-  assert.equal(first.min, 2);
-  assert.equal(first.max, 8);
-  assert.equal(first.icon, '01d');
-});
-
-test('buildDailyForecast: враховує часовий пояс міста', () =&gt; {
-  // 22:00 UTC = 00:00 наступного дня в UTC+2 → це вже «завтра» для міста
-  const tzForecast = { city: { timezone: 7200 }, list: [item('2026-11-02T22:30:00Z', 4)] };
-  const [day] = buildDailyForecast(tzForecast, NOW);
-  assert.equal(day.date, '2026-11-03');
-});
-
-test('getWeather: мапить відповідь у наш DTO', async () =&gt; {
-  const client = {
-    getCurrent: async () =&gt; ({
-      name: 'Kyiv', sys: { country: 'UA' }, coord: { lat: 50.45, lon: 30.52 },
-      weather: [{ description: 'ясно', icon: '01d' }],
-      main: { temp: 10.4, feels_like: 9, humidity: 60, pressure: 1012 },
-      wind: { speed: 3 },
-    }),
-    getForecast: async () =&gt; forecast,
-  };
-  const service = createWeatherService({ client, now: () =&gt; NOW });
-  const w = await service.getWeather('  Kyiv ');
-  assert.equal(w.city, 'Kyiv');
-  assert.equal(w.humidity, 60);
-  assert.equal(w.forecast.length, 3);
-  assert.deepEqual(w.coord, { lat: 50.45, lon: 30.52 });
-});
-
-test('getWeather: країна передається клієнту (нормалізована), невідома → 400', async () =&gt; {
-  const calls = [];
-  const current = {
-    name: 'Lviv', sys: { country: 'UA' }, coord: { lat: 49.84, lon: 24.03 },
-    weather: [{ description: 'ясно', icon: '01d' }],
-    main: { temp: 5, feels_like: 3, humidity: 70, pressure: 1010 }, wind: { speed: 2 },
-  };
-  const client = {
-    getCurrent: async (...a) =&gt; (calls.push(a), current),
-    getForecast: async () =&gt; forecast,
-  };
-  const service = createWeatherService({ client, now: () =&gt; NOW });
-  await service.getWeather('Lviv', ' ua ');
-  assert.deepEqual(calls[0], ['Lviv', 'UA']);
-
-  await assert.rejects(() =&gt; service.getWeather('Lviv', 'US'), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
-  await assert.rejects(() =&gt; service.getWeather('Lviv', 'UA,PL'), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
-});
-
-test('getCountries: список Європи містить Україну та без дублів', () =&gt; {
-  const list = createWeatherService({ client: {} }).getCountries();
-  assert.ok(list.length &gt;= 45);
-  assert.ok(list.some((c) =&gt; c.code === 'UA' &amp;&amp; c.name === 'Україна'));
-  assert.equal(new Set(list.map((c) =&gt; c.code)).size, list.length);
-});
-
-test('getMapTile: валідний тайл передається клієнту як числа', async () =&gt; {
-  let args;
-  const client = { getMapTile: async (...a) =&gt; ((args = a), Buffer.from('png')) };
-  const service = createWeatherService({ client });
-  const png = await service.getMapTile({ layer: 'wind_new', z: '3', x: '4', y: '5' });
-  assert.deepEqual(args, ['wind_new', 3, 4, 5]);
-  assert.equal(png.toString(), 'png');
-});
-
-test('parseTile: відхиляє чужий шар та координати поза межами', () =&gt; {
-  const bad = [
-    { layer: 'evil/../x', z: 1, x: 0, y: 0 }, // не з білого списку
-    { layer: 'wind_new', z: 11, x: 0, y: 0 }, // zoom більший за максимум
-    { layer: 'wind_new', z: 2, x: 4, y: 0 }, // на zoom 2 лише x = 0..3
-    { layer: 'wind_new', z: 2, x: 0, y: -1 },
-  ];
-  for (const t of bad) {
-    assert.throws(() =&gt; parseTile(t), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
-  }
-});
-
-test('getWeather: порожнє місто → AppError 400, клієнт не викликається', async () =&gt; {
-  const client = { getCurrent: () =&gt; assert.fail(), getForecast: () =&gt; assert.fail() };
-  const service = createWeatherService({ client });
-  await assert.rejects(() =&gt; service.getWeather('   '), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
-});</code></pre></div>
-  <div class="file"><div class="name"><b>test/gridService.test.js</b><span>сервіс вітру</span></div>
-<pre><code>// Запуск: npm test. Сервіс сітки (вітер і опади) тестуємо без мережі: client — фейк, час і «сон» — підставні.
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { createGridService, gridPoints, gridSize, gridInfo, toUV, buildVelocityData } from '../src/services/gridService.js';
-import { AppError } from '../src/errors.js';
-
-const START = 1_700_000_000 - (1_700_000_000 % 3600); // початок «поточної» години, UNIX-секунди
-const HOURS = 72;
-
-// Фейковий Open-Meteo: для кожної точки — стабільний вітер (3 м/с із заходу).
-// Опади: у годину i в точці p — (p % 5) / 2 мм, тож значення залежать і від точки, і від години (i = 0 → 0 мм).
-function fakeClient() {
-  const calls = [];
-  let offset = 0; // скільки точок уже віддано в попередніх порціях (щоб p був глобальним індексом)
-  return {
-    calls,
-    async getGrid(points, hours) {
-      calls.push(points.length);
-      const first = offset;
-      offset = (offset + points.length) % gridPoints().length;
-      return points.map((_, k) =&gt; ({
-        hourly: {
-          time: Array.from({ length: hours }, (_, i) =&gt; START + i * 3600),
-          wind_speed_10m: Array(hours).fill(3),
-          wind_direction_10m: Array(hours).fill(270),
-          precipitation: Array.from({ length: hours }, (_, i) =&gt; (i === 0 ? 0 : ((first + k) % 5) / 2)),
-        },
-      }));
-    },
-  };
-}
-
-const makeService = (client, nowSec = START) =&gt;
-  createGridService({ client, now: () =&gt; nowSec * 1000, sleep: async () =&gt; {} });
-
-test('toUV: західний вітер дме на схід (u&gt;0), північний — на південь (v&lt;0)', () =&gt; {
-  const west = toUV(5, 270);
-  assert.ok(Math.abs(west.u - 5) &lt; 1e-9 &amp;&amp; Math.abs(west.v) &lt; 1e-9);
-  const north = toUV(5, 0);
-  assert.ok(Math.abs(north.u) &lt; 1e-9 &amp;&amp; Math.abs(north.v + 5) &lt; 1e-9);
-});
-
-test('gridPoints: починається з північного заходу й іде рядками, кількість = nx × ny', () =&gt; {
-  const pts = gridPoints();
-  const { nx, ny } = gridSize();
-  assert.equal(pts.length, nx * ny);
-  assert.deepEqual(pts[0], { lat: 72.5, lon: -25 });
-  assert.deepEqual(pts[1], { lat: 72.5, lon: -22.5 }); // далі на схід
-  assert.deepEqual(pts[nx], { lat: 70, lon: -25 }); // наступний рядок — південніше
-});
-
-test('buildVelocityData: два обʼєкти U/V із заголовком, який чекає leaflet-velocity', () =&gt; {
-  const { nx, ny } = gridSize();
-  const n = nx * ny;
-  const [u, v] = buildVelocityData(Array(n).fill(1), Array(n).fill(2), '2026-01-01T00:00:00.000Z');
-  assert.equal(u.header.parameterNumber, 2);
-  assert.equal(v.header.parameterNumber, 3);
-  assert.equal(u.header.nx, nx);
-  assert.equal(u.header.la1, 72.5);
-  assert.equal(u.data.length, n);
-});
-
-test('getWindFrame: віддає U/V потрібної довжини й рахує, скільки годин ще лишилось', async () =&gt; {
-  const service = makeService(fakeClient());
-  const frame = await service.getWindFrame('0');
-  const { nx, ny } = gridSize();
-  assert.equal(frame.data[0].data.length, nx * ny);
-  assert.equal(frame.data[0].data[0], 3); // західний вітер 3 м/с → u = 3
-  assert.equal(frame.hours, HOURS);
-  assert.equal(frame.time, new Date(START * 1000).toISOString());
-});
-
-test('getPrecipitationFrame: плоский масив по сітці з описом сітки', async () =&gt; {
-  const service = makeService(fakeClient());
-  const frame = await service.getPrecipitationFrame(1);
-  const { nx, ny } = gridSize();
-  assert.equal(frame.values.length, nx * ny);
-  assert.deepEqual(frame.grid, gridInfo());
-  assert.equal(frame.grid.la1, 72.5); // перше значення — північно-західний кут
-  // значення залежить від ГЛОБАЛЬНОГО індексу точки, тож порядок після склеювання порцій збережено
-  assert.deepEqual(frame.values.slice(0, 6), [0, 0.5, 1, 1.5, 2, 0]);
-  assert.equal(frame.hour, 1);
-  assert.equal(frame.time, new Date((START + 3600) * 1000).toISOString());
-});
-
-test('getPrecipitationFrame: година 0 без опадів → усі нулі; відсутні значення теж 0', async () =&gt; {
-  const client = fakeClient();
-  const original = client.getGrid;
-  client.getGrid = async (...a) =&gt; {
-    const res = await original(...a);
-    res[0].hourly.precipitation[2] = null; // Open-Meteo може віддати null
-    return res;
-  };
-  const service = makeService(client);
-  const zero = await service.getPrecipitationFrame(0);
-  assert.ok(zero.values.every((x) =&gt; x === 0));
-  const withNull = await service.getPrecipitationFrame(2);
-  assert.equal(withNull.values[0], 0);
-});
-
-test('сітка: ділить на порції й кешує — і вітер, і опади беруться з ОДНОГО набору запитів', async () =&gt; {
-  const client = fakeClient();
-  const service = makeService(client);
-  await service.getWindFrame(0);
-  await service.getPrecipitationFrame(5);
-  const { nx, ny } = gridSize();
-  assert.equal(client.calls.reduce((a, b) =&gt; a + b, 0), nx * ny); // не 2 × nx × ny
-  assert.ok(client.calls.every((n) =&gt; n &lt;= 100));
-  const total = client.calls.length;
-  await service.getWindFrame(10);
-  await service.getPrecipitationFrame(10);
-  assert.equal(client.calls.length, total); // кеш
-});
-
-test('getWindFrame: одночасні запити ділять один виклик назовні', async () =&gt; {
-  const client = fakeClient();
-  const service = makeService(client);
-  await Promise.all([service.getWindFrame(0), service.getPrecipitationFrame(1), service.getWindFrame(2)]);
-  const { nx, ny } = gridSize();
-  assert.equal(client.calls.reduce((a, b) =&gt; a + b, 0), nx * ny);
-});
-
-test('година за межами прогнозу або некоректна → AppError 400 (і для вітру, і для опадів)', async () =&gt; {
-  const service = makeService(fakeClient());
-  for (const bad of [HOURS, -1, 'abc', 1.5]) {
-    await assert.rejects(() =&gt; service.getWindFrame(bad), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
-    await assert.rejects(() =&gt; service.getPrecipitationFrame(bad), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 400);
-  }
-});
-
-test('Open-Meteo впав, а кеш є — віддає старий кеш', async () =&gt; {
-  const client = fakeClient();
-  let nowSec = START;
-  const service = createGridService({ client, now: () =&gt; nowSec * 1000, sleep: async () =&gt; {} });
-  await service.getWindFrame(0);
-
-  nowSec = START + 4 * 3600; // кеш застарів (TTL 3 год)
-  client.getGrid = async () =&gt; { throw new AppError(502, 'впав'); };
-  const frame = await service.getPrecipitationFrame(0); // не кидає, бо є старі дані
-  assert.equal(frame.hours, HOURS - 4); // і правильно зсунув початок на 4 години
-});
-
-test('Open-Meteo впав, а кешу ще немає → помилка', async () =&gt; {
-  const client = { getGrid: async () =&gt; { throw new AppError(502, 'впав'); } };
-  const service = makeService(client);
-  await assert.rejects(() =&gt; service.getWindFrame(0), (e) =&gt; e instanceof AppError &amp;&amp; e.status === 502);
-});</code></pre></div>
-  <p>Тести використовують вбудований <code>node:test</code> і <code>node:assert</code>: ні Jest, ні Vitest не потрібні.</p>
-  <ul>
-    <li><strong>Фейковий Client</strong> — звичайний об'єкт із двома <code>async</code>-функціями. Це і є користь від шарів та DI.</li>
-    <li><strong>Фіксований час.</strong> <code>NOW</code> передається як <code>now: () =&gt; NOW</code>, тому тест не залежить від дня запуску.</li>
-    <li><strong>Тест «клієнт не викликається».</strong> Функції фейка містять <code>assert.fail()</code>: якщо сервіс спробує піти в мережу з порожнім містом, тест упаде.</li>
-    <li><strong>Сервіс сітки без мережі й без годинника.</strong> Фейковий Open-Meteo повертає однаковий вітер, а <code>now</code> і <code>sleep</code> передаються ззовні. Тому тест кешу не чекає 3 години, а паузи між порціями миттєві. Окремий тест перевіряє, що вітер і опади разом роблять рівно стільки викликів, скільки точок у сітці, а не вдвічі більше.</li>
-    <li><strong>Не лише «щасливий» шлях:</strong> некоректна година → 400; Open-Meteo впав, але кеш є → віддаємо старий; впав, а кешу немає → помилка.</li>
-  </ul>
-  <div class="note warn"><strong class="t">Чого немає</strong><p>Немає тестів для Client і Controller. Client тестується підміною <code>fetchFn</code>, Controller перевіряється запитом до запущеного сервера (як у ручній перевірці).</p></div>
-</section>
-
-<!-- 11 -->
-<section id="key">
-  <h2>14. Ключ і безпека</h2>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Ризик</th><th>Як закрито</th></tr></thead>
-    <tbody>
-      <tr><td>Ключ видно у DevTools</td><td>Браузер викликає <code>/api/weather</code>, а <code>appid</code> додається лише на сервері</td></tr>
-      <tr><td>Ключ потрапить у git</td><td><code>.env</code> у <code>.gitignore</code>; у репозиторії тільки <code>.env.example</code></td></tr>
-      <tr><td>Читання довільних файлів (<code>/../server.js</code>)</td><td><code>path.normalize</code> + перевірка, що шлях починається з <code>public/</code></td></tr>
-      <tr><td>XSS через дані API</td><td><code>textContent</code> замість <code>innerHTML</code></td></tr>
-      <tr><td>Довгі й порожні входи</td><td>Валідація в Service: 1–100 символів</td></tr>
-      <tr><td>Підміна шару чи координат тайла (довільний шлях до OpenWeatherMap)</td><td>Білий список шарів і межі <code>z/x/y</code> у <code>parseTile</code>, інакше 400</td></tr>
-      <tr><td>Ключ у запитах за тайлами</td><td>Тайли йдуть через <code>/api/tiles</code>, <code>appid</code> додає сервер</td></tr>
-      <tr><td>Невідома країна чи <code>UA,PL</code> у параметрі</td><td>Код має бути ключем <code>EUROPE_COUNTRIES</code></td></tr>
-      <tr><td>Вичерпання лімітів Open-Meteo</td><td>Кеш на 3 год, порції по 100 точок із паузою, один спільний запит для одночасних відвідувачів, старий кеш при збої</td></tr>
-      <tr><td>Підміна скриптів на CDN</td><td>Leaflet і leaflet-velocity підключені з SRI-хешем (<code>integrity</code>)</td></tr>
-      <tr><td>Витік деталей помилок</td><td>Для неочікуваних помилок клієнт бачить лише «Внутрішня помилка сервера»</td></tr>
-    </tbody>
-  </table></div>
-  <div class="note bad"><strong class="t">Якщо ключ потрапив у чат, скриншот чи репозиторій</strong><p>Вважай його скомпрометованим: на сторінці API keys в OpenWeatherMap видали його й створи новий. Безкоштовний тариф має ліміт 60 запитів на хвилину, тож чужий ключ швидко його вичерпає.</p></div>
-</section>
-
-<!-- 12 -->
-<section id="exercises">
-  <h2>15. Вправи</h2>
-  <ol>
-    <li><strong>Тест для Client.</strong> Передай фейковий <code>fetchFn</code>, що повертає <code>{ status: 401 }</code>, і перевір, що кинуто <code>AppError</code> зі статусом 502.</li>
-    <li><strong>Кеш на 10 хвилин.</strong> У Service зберігай відповідь у <code>Map</code> за ключем <code>city.toLowerCase()</code> разом із часом запису. Подивись, скільки файлів довелося змінити (має вийти один).</li>
-    <li><strong>Градуси Фаренгейта.</strong> Додай параметр <code>?units=imperial</code>. Де його чекати: Controller (прочитати), Service (передати), Client (використати)?</li>
-    <li><strong>Геокодинг.</strong> Додай у Client метод для <code>/geo/1.0/direct</code> і поверни координати разом із погодою. Скільки шарів зачепила зміна?</li>
-    <li><strong>Зламай навмисно.</strong> Зміни <code>slice(0, DAYS)</code> на <code>slice(0, DAYS + 1)</code> і подивись, який тест впаде.</li>
-    <li><strong>Тест для <code>openMeteoClient</code>.</strong> Фейковий <code>fetchFn</code> має повертати об'єкт замість масиву (так API відповідає для однієї точки), а потім статус 429. Що має кинути Client?</li>
-    <li><strong>Сітка 1°.</strong> Скільки точок вийде для Європи з кроком 1° і скільки викликів на добу це дасть при кеші на 3 години? Чи вкладемось у 10 000? Що можна змінити (TTL, межі, крок)?</li>
-    <li><strong>Кеш на диск.</strong> Збережи сітку вітру у файл, щоб перезапуск сервера не витрачав 493 виклики. Який шар має знати про файл?</li>
-    <li><strong>Температура по сітці.</strong> Додай у Client змінну <code>temperature_2m</code> і зроби такий самий шар, як для опадів. Скільки нових викликів до Open-Meteo це додасть? Які файли зміняться, а які ні?</li>
-  </ol>
-  <details>
-    <summary>Перевір себе: чому Service не імпортує Client напряму?</summary>
-    <div class="inner"><p>Тоді не вийде підставити фейк: тест ходив би в справжню мережу з справжнім ключем. Передача через аргумент (DI) робить залежність замінною, а Service незалежним від URL і формату конкретного провайдера.</p></div>
-  </details>
-  <details>
-    <summary>Перевір себе: що буде, якщо в Controller забути <code>try/catch</code>?</summary>
-    <div class="inner"><p><code>weatherService.getWeather</code> асинхронна. Помилка перетворюється на відхилений <code>Promise</code>, який у <code>http.createServer</code> ніхто не обробить. Клієнт не отримає відповіді, а в Node 15+ необроблене відхилення може завершити процес.</p></div>
+    </div>
   </details>
 </section>
 
 <!-- 13 -->
+<section id="tests">
+  <h2>13. Тести</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Файл</th><th>Що перевіряє</th><th>Тестів</th></tr></thead>
+    <tbody>
+      <tr><td><code>test/errors.test.js</code></td><td>статус і ім'я кожного класу помилки, <code>cause</code>, <code>ConfigError</code> не є <code>AppError</code></td><td class="num">3</td></tr>
+      <tr><td><code>test/AppConfig.test.js</code></td><td><code>fromEnv</code>: ключ, порт, заглушка з <code>.env.example</code></td><td class="num">3</td></tr>
+      <tr><td><code>test/domain.test.js</code></td><td><code>CountryRegistry</code>, <code>CityQuery</code>, <code>TileRequest</code>, <code>ForecastHour</code>, <code>Coordinate</code>, <code>WindVector</code>, <code>Grid</code>, <code>GridSnapshot</code>, <code>DailyForecast</code>, <code>Weather</code>, <code>ForecastBuilder</code>, <code>Frame</code> (абстрактність, <code>toJSON</code>)</td><td class="num">30</td></tr>
+      <tr><td><code>test/clients.test.js</code></td><td><code>ApiClient</code> (абстрактність, <code>errorForStatus</code>), <code>OpenWeatherClient</code> і <code>OpenMeteoClient</code> з підробленим <code>fetch</code>: URL, 401/404/429/5xx, мережа, одна точка = об'єкт замість масиву</td><td class="num">15</td></tr>
+      <tr><td><code>test/weatherService.test.js</code></td><td><code>WeatherService</code>: DTO, нормалізація країни, паралельність запитів, підміна залежностей</td><td class="num">9</td></tr>
+      <tr><td><code>test/gridService.test.js</code></td><td><code>GridService</code>: порції, кеш, спільний запит, TTL, запасний кеш, повтор через 10 хв, власна сітка</td><td class="num">15</td></tr>
+      <tr><td><code>test/http.test.js</code></td><td><code>Controller</code> та 4 нащадки, <code>Router</code> (405, 400, fallback), <code>StaticHandler</code> (403, 400, 404), <code>WeatherApp</code> на вільному порту</td><td class="num">25</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note good"><strong class="t">Підробки замість мережі</strong>
+    <p>Спільні заглушки лежать у <code>testSupport/fakes.js</code>: <code>fakeFetch</code>, <code>fakeReq</code>, <code>fakeRes</code>. Окрема папка потрібна тому, що <code>node --test</code> запускає як тест кожен <code>.js</code>-файл у папці <code>test</code>. Допоміжний файл там зарахувався б зайвим «тестом».</p></div>
+  <ul>
+    <li><strong>20 тестів → 100.</strong> Старі сценарії перенесено на нове API (<code>buildDailyForecast</code> → <code>ForecastBuilder</code>, <code>parseTile</code> → <code>TileRequest.parse</code>, <code>toUV</code> → <code>WindVector.fromMeteo</code> тощо).</li>
+    <li><strong>Нове проти старої версії:</strong> тест, що клієнт отримує <code>CityQuery</code>, а не два рядки; повторна спроба оновлення лише через 10 хв; пауза між порціями; <code>null</code> у даних Open-Meteo; шлях із <code>..%2f</code> → 403; <code>/%zz</code> → 400; не-GET → 405; ключ не видно у властивостях клієнта.</li>
+    <li><strong>Дещо нетривіальне, що виявилось у тестах.</strong> Об'єкт <code>URL</code> сам нормалізує <code>/%2e%2e/x</code> до <code>/x</code> ще до <code>StaticHandler</code>, тому 403 спрацьовує на <code>..%2f</code> (закодований слеш), а не на <code>%2e%2e</code>.</li>
+  </ul>
+</section>
+
+<!-- 14 -->
+<section id="exercises">
+  <h2>14. Вправи</h2>
+  <ol>
+    <li><strong>Новий шар на фронтенді.</strong> Додай <code>CloudsFrameSource extends FrameSource</code> (кадри хмарності, якби сервер їх віддавав). Які існуючі класи треба змінити, окрім <code>App</code>, де створюється список джерел?</li>
+    <li><strong>Третій клієнт.</strong> Напиши <code>MockClient extends ApiClient</code> (або просто об'єкт з тими самими методами) для <code>GridService</code>. Чи доведеться чіпати сервіс? Чому?</li>
+    <li><strong>Нова помилка.</strong> Додай <code>ForbiddenError</code> зі статусом 403 і перевір, що <code>Controller.sendError</code> не змінився.</li>
+    <li><strong>Зламай навмисно.</strong> Прибери <code>Object.freeze(this)</code> з <code>CityQuery</code> і спробуй змінити <code>query.country</code> у сервісі. Який тест це помітить, а який ні?</li>
+    <li><strong>Кеш на диск.</strong> Винеси кеш із <code>GridService</code> в інтерфейс <code>SnapshotStore</code> (<code>get()</code>, <code>set()</code>) з двома реалізаціями: пам'ять і файл. Що з <code>#inflight</code>?</li>
+  </ol>
+  <details>
+    <summary>Перевір себе: чому <code>ApiClient</code> кидає <code>TypeError</code> при <code>new ApiClient()</code>, а не просто не має конструктора?</summary>
+    <div class="inner"><p>Нащадки викликають <code>super(options)</code>, тож конструктор потрібен. Перевірка <code>new.target === ApiClient</code> відрізняє «створили сам предок» від «створили нащадка».</p></div>
+  </details>
+  <details>
+    <summary>Перевір себе: навіщо <code>GridSnapshot</code> замороджений, якщо вмістом масивів можна керувати?</summary>
+    <div class="inner"><p><code>Object.freeze</code> неглибокий: він забороняє перепризначити поля (<code>snapshot.hours = 1</code>), але масиви всередині лишаються змінними. Це захист від випадкової підміни самого знімка, а не гарантія незмінності даних.</p></div>
+  </details>
+</section>
+
+<!-- 15 -->
 <section id="status">
-  <h2>16. Що перевірено</h2>
+  <h2>15. Що перевірено</h2>
   <div class="tablewrap"><table>
     <thead><tr><th>Перевірка</th><th>Результат</th></tr></thead>
     <tbody>
-      <tr><td>Юніт-тести (<code>npm test</code>)</td><td><span class="status ok">20 з 20 пройшли</span></td></tr>
-      <tr><td>Сервер стартує, <code>/</code> віддає сторінку</td><td><span class="status ok">200</span></td></tr>
-      <tr><td><code>/../server.js</code></td><td><span class="status ok">404, файл не віддається</span></td></tr>
-      <tr><td>Запит без міста</td><td><span class="status ok">400 з поясненням</span></td></tr>
-      <tr><td>Живий запит з реальним ключем</td><td><span class="status ok">200, ключ активний</span></td></tr>
-      <tr><td>Пошук Paris + FR / Paris + US / Lviv + PL</td><td><span class="status ok">знайдено / 400 / 404 «не знайдено (PL)»</span></td></tr>
-      <tr><td><code>/api/tiles/…</code>: коректний тайл, невідомий шар, поза межами</td><td><span class="status ok">200 image/png / 400 / 400</span></td></tr>
-      <tr><td><code>/api/wind</code>: перший запит, повторний, <code>hour=500</code></td><td><span class="status ok">≈5 с (заповнення кешу) / 0.05 с / 400</span></td></tr>
-      <tr><td><code>/api/wind</code>: сітка й швидкість</td><td><span class="status ok">29×17 = 493 точки, 0.1–19.2 м/с</span></td></tr>
-      <tr><td><code>/api/precipitation</code>: години 0, 12, 24, 48 і <code>hour=500</code></td><td><span class="status ok">493 значення, максимум 3–5 мм/год / 400</span></td></tr>
-      <tr><td>Браузер: шар опадів (плавні плями, легенда), повзунок (24 год → «ср, 4 лист.»), масштабування й пересування, перемикання між вітром, опадами й тайлами</td><td><span class="status ok">перевірено</span></td></tr>
-      <tr><td>Браузер: карта, анімація частинок, повзунок (24 год → «ср, 4 лист.»), ▶, перемикання шарів, консоль без помилок</td><td><span class="status ok">перевірено</span></td></tr>
-      <tr><td>Вигляд тайлових шарів «Опади (зараз)» і «Температура» (OpenWeatherMap) при активній погоді</td><td><span class="status no">не перевірено (на момент перевірки опадів над Європою не було видно)</span></td></tr>
+      <tr><td>Тести (<code>npm test</code>)</td><td><span class="status ok">100 з 100 пройшли (було 20)</span></td></tr>
+      <tr><td>Еквівалентність без мережі: ті самі підроблені дані у старих функціях (коміт 05b1b70) і нових класах. Кадри вітру й опадів на 3 моментах часу, годинах 0, 5, 24, 71, 72, −1, <code>'abc'</code>, 1.5, <code>null</code>…; <code>getWeather</code> для 14 вхідних пар; <code>getCountries</code>; <code>getMapTile</code> для 9 тайлів</td><td><span class="status ok">103 порівняння, 0 відмінностей (JSON і помилки збігаються байт у байт)</span></td></tr>
+      <tr><td>41 HTTP-запит до старої й нової версії на реальних API (країни, погода, всі види 400/404, тайли, вітер і опади по годинах, статика, 403/404/405). Запуск послідовний, між ними пауза, щоб не впертись у ліміт Open-Meteo</td><td><span class="status ok">37 відповідей ідентичні</span></td></tr>
+      <tr><td>…чотири розбіжні: <code>/</code>, <code>/style.css</code>, <code>/precipitationLayer.js</code>, <code>/app.js</code></td><td><span class="status ok">перші три збігаються після нормалізації CRLF (файли в git не змінені); <code>/app.js</code> переписано навмисно</span></td></tr>
+      <tr><td>Фронтенд у реальному браузері (headless Chrome через протокол DevTools; розширення Chrome для Claude не підключилось). 39 перевірок: початковий стан, пошук, картки, карта, маркер, вітер, повзунок, debounce, ▶/⏸, опади і легенда, 5 тайлових шарів, швидкі перемикання, друге місто, помилка пошуку, відновлення після перезавантаження</td><td><span class="status ok">38 з 39; одна «помилка» — лише рядок консолі про 404 (див. нижче)</span></td></tr>
+      <tr><td>Той самий набір з 39 перевірок на старій версії</td><td><span class="status ok">так само 38 з 39: поведінка збігається</span></td></tr>
+      <tr><td>Консоль браузера</td><td><span class="status ok">винятків JS немає</span>; лише повідомлення браузера «404» про <code>/favicon.ico</code> і про навмисно неіснуюче місто <code>Zzzzqqq</code> (так само на старій версії)</td></tr>
+      <tr><td>Некоректне %-кодування та дивний <code>Host</code> на справжньому сервері</td><td><span class="status no">лише юніт-тестами з підробленими req/res; падіння старої версії я не відтворював</span></td></tr>
+      <tr><td>Сторінка без інтернету (Leaflet із CDN не завантажився)</td><td><span class="status no">не перевірялось</span></td></tr>
+      <tr><td>Проглянуто очима в звичайному вікні Chrome (скриншоти)</td><td><span class="status no">ні: розширення не підключилось; перевірки робилися через DOM</span></td></tr>
     </tbody>
   </table></div>
-  <div class="note"><strong class="t">Відомі обмеження</strong>
-    <p>Open-Meteo безкоштовний лише для некомерційного використання, а кожен перезапуск сервера скидає кеш і витрачає ≈493 виклики з добових 10 000. Сітка груба (2.5°): видно великі потоки, як циклони й фронти, але не локальні ефекти. Підкладка — стандартні тайли OpenStreetMap, їхня політика допускає лише помірне використання.</p></div>
+  <div class="note warn"><strong class="t">Раніше було 2 розбіжності зі 40</strong>
+    <p>Під час першої звірки відрізнялися <code>/api/wind?hour=24</code> і <code>/api/precipitation?hour=24</code>. При повторі, коли обидва сервери завантажили сітку з різницею в кілька хвилин, вони збіглися. Імовірна причина — оновлення прогнозу Open-Meteo між зніманням еталона й перевіркою, але я цього не доводив. Незалежно від цього, офлайн-перевірка з однаковими даними (рядок 2 таблиці) показала повну еквівалентність логіки.</p></div>
+  <div class="note"><strong class="t">Де зміни</strong>
+    <p>Усе зроблено в гілці <code>refactor-oop</code> і не закомічено. Гілка <code>main</code> лишається зі старою версією (і старим <code>guide.html</code>): <code>git diff main refactor-oop</code>.</p></div>
 </section>
+
 
 </main>
 </div>

@@ -1,49 +1,35 @@
-// Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо шари між собою.
-//   HTTP → controller → service → client → OpenWeatherMap
-import http from 'node:http';
-import { loadConfig } from './src/config.js';
-import { createOpenWeatherClient } from './src/clients/openWeatherClient.js';
-import { createWeatherService } from './src/services/weatherService.js';
-import {
-  createWeatherController,
-  createTileController,
-  createCountriesController,
-  createFrameController,
-  matchTileRoute,
-} from './src/controllers/weatherController.js';
-import { createOpenMeteoClient } from './src/clients/openMeteoClient.js';
-import { createGridService } from './src/services/gridService.js';
-import { createStaticHandler } from './src/staticHandler.js';
+// Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо класи між собою.
+//   HTTP → Router → Controller → Service → Client → OpenWeatherMap / Open-Meteo
+import { AppConfig } from './src/AppConfig.js';
+import { OpenMeteoClient } from './src/clients/OpenMeteoClient.js';
+import { OpenWeatherClient } from './src/clients/OpenWeatherClient.js';
+import { CountriesController } from './src/controllers/CountriesController.js';
+import { FrameController } from './src/controllers/FrameController.js';
+import { TileController } from './src/controllers/TileController.js';
+import { WeatherController } from './src/controllers/WeatherController.js';
+import { Router } from './src/http/Router.js';
+import { StaticHandler } from './src/http/StaticHandler.js';
+import { WeatherApp } from './src/http/WeatherApp.js';
+import { GridService } from './src/services/GridService.js';
+import { WeatherService } from './src/services/WeatherService.js';
 
 let config;
 try {
-  config = loadConfig();
+  config = AppConfig.load();
 } catch (err) {
   console.error(err.message);
   process.exit(1);
 }
 
-// Dependency Injection вручну: кожен шар отримує те, що йому потрібно, через аргументи.
-const client = createOpenWeatherClient({ apiKey: config.apiKey });
-const weatherService = createWeatherService({ client });
-const getWeather = createWeatherController({ weatherService });
-const getTile = createTileController({ weatherService });
-const getCountries = createCountriesController({ weatherService });
-const gridService = createGridService({ client: createOpenMeteoClient() });
-const getWind = createFrameController(gridService.getWindFrame);
-const getPrecipitation = createFrameController(gridService.getPrecipitationFrame);
-const serveStatic = createStaticHandler(config.publicDir);
+// Ін'єкція залежностей вручну: кожен клас отримує те, що йому потрібно, через конструктор.
+const weatherService = new WeatherService({ client: new OpenWeatherClient({ apiKey: config.apiKey }) });
+const gridService = new GridService({ client: new OpenMeteoClient() });
 
-http
-  .createServer((req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    if (req.method !== 'GET') return void res.writeHead(405).end();
-    if (url.pathname === '/api/weather') return void getWeather(req, res, url);
-    if (url.pathname === '/api/wind') return void getWind(req, res, url);
-    if (url.pathname === '/api/precipitation') return void getPrecipitation(req, res, url);
-    if (url.pathname === '/api/countries') return void getCountries(req, res);
-    const tile = matchTileRoute(url.pathname);
-    if (tile) return void getTile(req, res, tile);
-    serveStatic(req, res, url);
-  })
-  .listen(config.port, () => console.log(`Weather Dashboard: http://localhost:${config.port}`));
+const router = new Router({ fallback: new StaticHandler(config.publicDir) })
+  .get('/api/weather', new WeatherController({ weatherService }))
+  .get('/api/countries', new CountriesController({ weatherService }))
+  .get(TileController.ROUTE, new TileController({ weatherService }))
+  .get('/api/wind', new FrameController((hour) => gridService.getWindFrame(hour)))
+  .get('/api/precipitation', new FrameController((hour) => gridService.getPrecipitationFrame(hour)));
+
+new WeatherApp({ router }).listen(config.port, () => console.log(`Weather Dashboard: http://localhost:${config.port}`));

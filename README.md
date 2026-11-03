@@ -22,31 +22,47 @@
 - **Опади (прогноз)** — плавна кольорова карта опадів у мм/год із легендою, той самий повзунок часу. Дані — Open-Meteo
   (власний canvas-шар `public/precipitationLayer.js`: інтерполяція між вузлами сітки 2.5°).
 
-## Патерн: шарова архітектура + ручна Dependency Injection
+## Патерн: шарова архітектура + класи + ін'єкція залежностей
 
 ```
-браузер ─▶ Controller ─▶ Service ─▶ Client ─▶ OpenWeatherMap (/weather, /forecast, тайли)
- (public)  (HTTP)        (логіка)   (Adapter)  Open-Meteo (вітер по сітці)
+браузер ─▶ Router ─▶ Controller ─▶ Service ─▶ Client ─▶ OpenWeatherMap (/weather, /forecast, тайли)
+ (public)  (HTTP)    (HTTP)        (логіка)   (Adapter)  Open-Meteo (вітер і опади по сітці)
 ```
 
-| Шар | Файл | Відповідальність | Чого НЕ знає |
+Бекенд і фронтенд написано на **класах** (ООП-версія, гілка `refactor-oop`): доменні класи (value object-и), абстрактні
+базові класи з наслідуванням, ін'єкція залежностей через конструктор. Поведінка API не змінилась.
+
+| Шар | Файли | Відповідальність | Чого НЕ знає |
 |---|---|---|---|
-| Controller | `src/controllers/weatherController.js` | читає запит, викликає сервіс, віддає JSON/PNG/статус | бізнес-логіки |
-| Service | `src/services/weatherService.js` | валідація (місто, країна, тайл), мапінг у наш DTO, прогноз на 3 дні | HTTP, URL провайдера |
-| Service | `src/services/gridService.js` | сітка Європи, один кеш на 3 год для вітру й опадів, швидкість/напрямок → U/V | HTTP, URL Open-Meteo |
-| Client | `src/clients/openWeatherClient.js` | URL, ключ, коди відповідей → `AppError`; погода й тайли | що робити з даними |
-| Client | `src/clients/openMeteoClient.js` | запити вітру порціями по сітці | що робити з даними |
+| Router | `src/http/Router.js` | за шляхом обирає обробника; не-GET → 405; некоректний URL → 400 | що роблять контролери |
+| Controller | `src/controllers/Controller.js` (абстрактний) + `WeatherController`, `CountriesController`, `TileController`, `FrameController` | шаблонний метод: `handle()` ловить помилки, нащадок пише лише `respond()` | бізнес-логіки |
+| Service | `src/services/WeatherService.js` | створює `CityQuery`/`TileRequest`, збирає `Weather` | HTTP, URL провайдера |
+| Service | `src/services/GridService.js` | кеш сітки на 3 год (`GridSnapshot`), кадри вітру й опадів (`WindFrame`, `PrecipitationFrame`) | HTTP, URL Open-Meteo |
+| Client | `src/clients/ApiClient.js` (абстрактний) + `OpenWeatherClient`, `OpenMeteoClient` | загальний алгоритм запиту в предку; URL, ключ і тексти помилок у нащадках | що робити з даними |
+| Домен | `src/domain/*` | `CityQuery`, `TileRequest`, `ForecastHour`, `Coordinate`, `CountryRegistry`, `Grid`, `GridSnapshot`, `WindVector`, `ForecastBuilder`, `Weather`, `DailyForecast`, `Frame` (+ нащадки) | мережі |
 | Дані | `src/data/europeCountries.js` | 45 країн Європи: код ISO → назва | — |
-| Composition root | `server.js` | створює об'єкти, передає залежності, маршрути | — |
+| Composition root | `server.js` | створює об'єкти й передає залежності, реєструє маршрути | — |
 
-Допоміжне: `src/config.js` (читання `.env`), `src/errors.js` (`AppError` зі статусом), `src/staticHandler.js`.
+Допоміжне: `src/AppConfig.js` (читання `.env`), `src/errors.js` (ієрархія `AppError` → `ValidationError` 400, `NotFoundError` 404,
+`RateLimitError` 429, `UpstreamError` 502; `ConfigError` для запуску), `src/http/StaticHandler.js`, `src/http/WeatherApp.js`.
+
+Фронтенд (`public/app.js`): `WeatherApi`, `WeatherView`, `CountrySelect`, `SearchHistory`, `Timeline`, `LayerSwitcher`, `Legend`,
+`WeatherMap`, абстрактний `LayerSource` з нащадками `TileSource` / `FrameSource` (→ `WindSource`, `PrecipitationSource`) і `App`.
 
 **Навіщо так:**
 - Заміниш провайдера — міняєш лише `Client`; сервіс, контролер і фронтенд не чіпаєш.
-- Залежності приходять аргументами (`createWeatherService({ client })`), тому в тестах підставляється фейковий клієнт — тести без мережі. У сервісі вітру так само підставляються `now` і `sleep`, щоб не чекати кеш і паузи.
-- Помилки: клієнт/сервіс кидають `AppError(status, msg)`, контролер єдиний перетворює їх на HTTP-відповідь.
+- Залежності приходять у конструктор (`new WeatherService({ client })`), тому в тестах підставляється фейковий клієнт — тести без мережі.
+  Так само підставляються `fetchFn` у клієнтах, `now` і `sleep` у сервісах, щоб не чекати кеш і паузи.
+- Помилки: клієнти й сервіси кидають підклас `AppError` (статус уже вшито в клас), `Controller.sendError` єдиний перетворює їх на HTTP-відповідь.
+- Нову відповідь API описує `toJSON()` доменного класу: `JSON.stringify` викликає його сам, і порядок полів зафіксовано в одному місці.
 
-**З чого розбирати код (порядок):** `server.js` → `controller` → `service` → `client` → `test`. Розбір із поясненнями: `guide.html` (відкрий у браузері).
+**З чого розбирати код (порядок):** `server.js` → `Router` → `Controller` → `Service` → `Client` → `domain` → `test`.
+Розбір із поясненнями: `guide.html` (відкрий у браузері).
+
+## Тести
+
+`npm test` — 100 тестів (було 20), без мережі й без ключа: `errors`, `AppConfig`, доменні класи, клієнти з підробленим `fetch`,
+сервіси, контролери/Router/StaticHandler з підробленими `req`/`res` і `WeatherApp` на вільному порту.
 
 ## Ключ API
 Лише в `.env` на сервері (`.env` у `.gitignore`), браузер його ніколи не бачить. Тайли карти теж йдуть
