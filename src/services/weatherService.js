@@ -1,6 +1,7 @@
 // ШАР 2 — Service (бізнес-логіка). Нічого не знає ні про HTTP, ні про URL OpenWeatherMap.
 // Залежності (client, now) приходять ззовні → у тестах підставляємо фейки (Dependency Injection).
 import { AppError } from '../errors.js';
+import { EUROPE_COUNTRIES, EUROPE_LIST } from '../data/europeCountries.js';
 
 const DAYS = 3;
 
@@ -40,13 +41,44 @@ export function buildDailyForecast(forecast, nowMs) {
   });
 }
 
+// Дозволені шари карти (білий список): іншого рядка до OpenWeatherMap не пропустимо.
+export const MAP_LAYERS = ['clouds_new', 'precipitation_new', 'wind_new', 'temp_new', 'pressure_new'];
+const MAX_ZOOM = 10;
+
+// Валідація координат тайла: у zoom z існує 2^z × 2^z тайлів (x, y від 0 до 2^z − 1).
+export function parseTile({ layer, z, x, y }) {
+  const [nz, nx, ny] = [z, x, y].map(Number);
+  const side = 2 ** nz;
+  const ok =
+    MAP_LAYERS.includes(layer) &&
+    Number.isInteger(nz) && nz >= 0 && nz <= MAX_ZOOM &&
+    Number.isInteger(nx) && nx >= 0 && nx < side &&
+    Number.isInteger(ny) && ny >= 0 && ny < side;
+  if (!ok) throw new AppError(400, 'Некоректний тайл карти.');
+  return { layer, z: nz, x: nx, y: ny };
+}
+
 export function createWeatherService({ client, now = Date.now }) {
   return {
-    async getWeather(rawCity) {
+    async getMapTile(params) {
+      const { layer, z, x, y } = parseTile(params);
+      return client.getMapTile(layer, z, x, y);
+    },
+
+    getCountries: () => EUROPE_LIST,
+
+    async getWeather(rawCity, rawCountry) {
       const city = String(rawCity ?? '').trim();
       if (!city || city.length > 100) throw new AppError(400, 'Вкажи назву міста (до 100 символів).');
 
-      const [current, forecast] = await Promise.all([client.getCurrent(city), client.getForecast(city)]);
+      // Країна необовʼязкова; якщо є — лише з нашого списку (білий список, як і шари карти)
+      const country = String(rawCountry ?? '').trim().toUpperCase();
+      if (country && !(country in EUROPE_COUNTRIES)) throw new AppError(400, 'Невідома країна.');
+
+      const [current, forecast] = await Promise.all([
+        client.getCurrent(city, country),
+        client.getForecast(city, country),
+      ]);
 
       // Мапимо чужий формат у НАШ (DTO). Фронтенд залежить лише від цієї форми.
       return {
@@ -59,6 +91,7 @@ export function createWeatherService({ client, now = Date.now }) {
         humidity: current.main.humidity,
         pressure: current.main.pressure,
         windSpeed: current.wind.speed,
+        coord: { lat: current.coord.lat, lon: current.coord.lon }, // центр карти
         forecast: buildDailyForecast(forecast, now()),
       };
     },

@@ -4,7 +4,15 @@ import http from 'node:http';
 import { loadConfig } from './src/config.js';
 import { createOpenWeatherClient } from './src/clients/openWeatherClient.js';
 import { createWeatherService } from './src/services/weatherService.js';
-import { createWeatherController } from './src/controllers/weatherController.js';
+import {
+  createWeatherController,
+  createTileController,
+  createCountriesController,
+  createWindController,
+  matchTileRoute,
+} from './src/controllers/weatherController.js';
+import { createOpenMeteoClient } from './src/clients/openMeteoClient.js';
+import { createWindService } from './src/services/windService.js';
 import { createStaticHandler } from './src/staticHandler.js';
 
 let config;
@@ -19,6 +27,10 @@ try {
 const client = createOpenWeatherClient({ apiKey: config.apiKey });
 const weatherService = createWeatherService({ client });
 const getWeather = createWeatherController({ weatherService });
+const getTile = createTileController({ weatherService });
+const getCountries = createCountriesController({ weatherService });
+const windService = createWindService({ client: createOpenMeteoClient() });
+const getWind = createWindController({ windService });
 const serveStatic = createStaticHandler(config.publicDir);
 
 http
@@ -26,6 +38,10 @@ http
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (req.method !== 'GET') return void res.writeHead(405).end();
     if (url.pathname === '/api/weather') return void getWeather(req, res, url);
+    if (url.pathname === '/api/wind') return void getWind(req, res, url);
+    if (url.pathname === '/api/countries') return void getCountries(req, res);
+    const tile = matchTileRoute(url.pathname);
+    if (tile) return void getTile(req, res, tile);
     serveStatic(req, res, url);
   })
   .listen(config.port, () => console.log(`Weather Dashboard: http://localhost:${config.port}`));

@@ -25,7 +25,11 @@ h1 { margin: 0 0 20px; font-weight: 600; }
   flex: 1; padding: 12px 14px; border-radius: 10px;
   border: 1px solid #334155; background: var(--card); color: var(--text); font-size: 1rem;
 }
-.search input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.search select {
+  max-width: 190px; padding: 12px 10px; border-radius: 10px;
+  border: 1px solid #334155; background: var(--card); color: var(--text); font-size: 1rem;
+}
+.search input:focus, .search select:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .search button {
   padding: 12px 20px; border: 0; border-radius: 10px; cursor: pointer;
   background: var(--accent); color: #0b1220; font-weight: 600; font-size: 1rem;
@@ -59,7 +63,33 @@ h3 { margin: 0 0 12px; font-weight: 600; }
 .day .range span { color: var(--muted); }
 .day .hum { color: var(--muted); font-size: .85rem; margin-top: 4px; }
 
+#map-section { margin-top: 24px; }
+.layers { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.layers button {
+  padding: 8px 14px; border-radius: 999px; cursor: pointer; font-size: .9rem;
+  border: 1px solid #334155; background: var(--card); color: var(--text);
+}
+.layers button:hover { border-color: var(--accent); }
+.layers button.active { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 600; }
+.map { height: 420px; border-radius: 16px; overflow: hidden; background: var(--card); }
+/* Темна підложка: інвертуємо світлі тайли OSM. Шар погоди (інший клас) фільтр не отримує. */
+.map .base-tiles { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.7); }
+.map.leaflet-container { background: #1b1b1b; }
+.timeline { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.timeline[hidden] { display: none; }
+.timeline button {
+  width: 40px; height: 40px; flex: none; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--accent); color: #0b1220; font-size: 1rem;
+}
+.timeline input[type="range"] { flex: 1; accent-color: var(--accent); }
+.hour-label { min-width: 9.5em; text-align: right; color: var(--muted); font-size: .9rem; text-transform: capitalize; }
+.map-hint { margin: 8px 0 0; color: var(--muted); font-size: .85rem; }
+
 @media (max-width: 480px) {
+  .search { flex-wrap: wrap; }
+  .search select { max-width: none; flex: 1 1 100%; }
+  .map { height: 320px; }
+  .hour-label { min-width: 0; font-size: .8rem; }
   .current-main { flex-wrap: wrap; }
   .temp { margin-left: 0; }
 }
