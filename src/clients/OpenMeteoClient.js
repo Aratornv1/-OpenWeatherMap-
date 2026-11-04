@@ -19,14 +19,14 @@ export class OpenMeteoClient extends ApiClient {
 
   // points: Coordinate[]. Повертає масив (по одному елементу на точку, в тому ж порядку):
   //   { hourly: { time: [unix-секунди], wind_speed_10m: [м/с], wind_direction_10m: [° звідки дме],
-  //               precipitation: [мм за попередню годину] } }
+  //               precipitation: [мм за попередню годину], temperature_2m: [°C] } }
   // Кілька змінних в одному запиті не збільшують кількість викликів: рахується кожна точка.
   async getGrid(points, hours) {
     const url = new URL(OpenMeteoClient.URL);
     url.search = new URLSearchParams({
       latitude: points.map((p) => p.lat).join(','),
       longitude: points.map((p) => p.lon).join(','),
-      hourly: 'wind_speed_10m,wind_direction_10m,precipitation',
+      hourly: 'wind_speed_10m,wind_direction_10m,precipitation,temperature_2m',
       wind_speed_unit: 'ms',
       forecast_hours: String(hours),
       timeformat: 'unixtime',

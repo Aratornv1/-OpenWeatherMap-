@@ -51,10 +51,11 @@
       <div id="layers" class="layers" role="group" aria-label="Шар карти">
         <button type="button" data-layer="wind_anim" class="active">Вітер ➤ анімація</button>
         <button type="button" data-layer="precip_grid">Опади (прогноз)</button>
+        <button type="button" data-layer="temp_grid">Температура (прогноз)</button>
         <button type="button" data-layer="precipitation_new">Опади (зараз)</button>
         <button type="button" data-layer="clouds_new">Хмари</button>
         <button type="button" data-layer="wind_new">Вітер (кольори)</button>
-        <button type="button" data-layer="temp_new">Температура</button>
+        <button type="button" data-layer="temp_new">Температура (зараз)</button>
         <button type="button" data-layer="pressure_new">Тиск</button>
       </div>
       <div id="map" class="map"></div>
@@ -64,7 +65,7 @@
         <span id="hour-label" class="hour-label"></span>
       </div>
       <div id="legend" class="legend" hidden>
-        <span class="legend-title">Опади, мм/год</span>
+        <span id="legend-title" class="legend-title"></span>
         <div id="legend-scale" class="legend-scale"></div>
       </div>
       <p id="map-hint" class="map-hint"></p>
@@ -74,7 +75,7 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.min.js"
           integrity="sha256-TpmNTyB+ACOS5pMIYgAMzQvCDl1KU4xULsb2/Jjej74=" crossorigin="anonymous"></script>
-  <script src="precipitationLayer.js"></script>
+  <script src="scalarFieldLayer.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

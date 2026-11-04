@@ -134,7 +134,7 @@ test('OpenMeteoClient.getGrid: усі точки в одному запиті, �
   assert.equal(url.hostname, 'api.open-meteo.com');
   assert.equal(url.searchParams.get('latitude'), '50,51');
   assert.equal(url.searchParams.get('longitude'), '30,31');
-  assert.equal(url.searchParams.get('hourly'), 'wind_speed_10m,wind_direction_10m,precipitation');
+  assert.equal(url.searchParams.get('hourly'), 'wind_speed_10m,wind_direction_10m,precipitation,temperature_2m');
   assert.equal(url.searchParams.get('wind_speed_unit'), 'ms');
   assert.equal(url.searchParams.get('forecast_hours'), '72');
   assert.equal(url.searchParams.get('timeformat'), 'unixtime');

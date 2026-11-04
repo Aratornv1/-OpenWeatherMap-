@@ -9,9 +9,11 @@
 //    ├─ TileSource        — тайли-картинки з нашого сервера
 //    └─ FrameSource       — шар із прогнозом по годинах (абстрактний)
 //        ├─ WindSource            — анімований вітер (leaflet-velocity)
-//        └─ PrecipitationSource   — опади по сітці (власний canvas-шар)
+//        └─ ScalarFieldSource     — число на вузол сітки (власний canvas-шар) зі своєю палітрою
+//            ├─ PrecipitationSource   — опади
+//            └─ TemperatureSource     — температура
 //   LayerSwitcher   — кнопки вибору шару
-//   Legend          — легенда опадів
+//   Legend          — легенда шару з палітрою (опади, температура)
 //   Timeline        — повзунок часу і кнопка ▶
 //   WeatherMap      — Leaflet-карта, маркер, активний шар, запити кадрів
 //   App             — збирає все разом (composition root фронтенду)
@@ -163,7 +165,7 @@ class CountrySelect {
 // Шари погоди бувають двох видів:
 //  • тайли-картинки з НАШОГО сервера (/api/tiles/...) — сервер додає API-ключ, у браузері його немає;
 //  • «кадрові» шари з прогнозом по годинах: сервер віддає кадр на годину N, а браузер малює його
-//    (вітер — leaflet-velocity, опади — власний canvas-шар). Керує ними повзунок часу.
+//    (вітер — leaflet-velocity, опади й температура — власний canvas-шар). Керує ними повзунок часу.
 // WeatherMap працює з будь-яким LayerSource однаково: поліморфізм замість if/else за назвою шару.
 class LayerSource {
   constructor(name, hint) {
@@ -176,8 +178,9 @@ class LayerSource {
     return false;
   }
 
-  get hasLegend() {
-    return false;
+  // Палітра для легенди (з FieldPalettes) або null, якщо шар легенди не має
+  get palette() {
+    return null;
   }
 
   createLayer() {
@@ -237,24 +240,45 @@ class WindSource extends FrameSource {
   }
 }
 
-class PrecipitationSource extends FrameSource {
-  constructor() {
-    super('precip_grid', 'Опади за годину (прогноз Open-Meteo, сітка 2.5°). Рухай повзунок або натисни ▶ — прогноз на 3 доби.', {
-      url: '/api/precipitation',
-      title: 'опади',
-    });
+// Спільне для шарів «одне число на вузол сітки»: різняться вони лише адресою, текстами й палітрою
+class ScalarFieldSource extends FrameSource {
+  #paletteName;
+
+  constructor(name, hint, { url, title, paletteName }) {
+    super(name, hint, { url, title });
+    this.#paletteName = paletteName;
   }
 
-  get hasLegend() {
-    return true;
+  get palette() {
+    return window.FieldPalettes[this.#paletteName];
   }
 
   createLayer(body) {
-    return L.precipitationLayer(body);
+    return L.scalarFieldLayer(body, this.palette);
   }
 
   updateLayer(layer, body) {
     layer.setData(body);
+  }
+}
+
+class PrecipitationSource extends ScalarFieldSource {
+  constructor() {
+    super('precip_grid', 'Опади за годину (прогноз Open-Meteo, сітка 2.5°). Рухай повзунок або натисни ▶ — прогноз на 3 доби.', {
+      url: '/api/precipitation',
+      title: 'опади',
+      paletteName: 'precipitation',
+    });
+  }
+}
+
+class TemperatureSource extends ScalarFieldSource {
+  constructor() {
+    super('temp_grid', 'Температура повітря на 2 м (прогноз Open-Meteo, сітка 2.5°). Рухай повзунок або натисни ▶ — прогноз на 3 доби.', {
+      url: '/api/temperature',
+      title: 'температура',
+      paletteName: 'temperature',
+    });
   }
 }
 
@@ -274,24 +298,25 @@ class LayerSwitcher {
   }
 }
 
-// Легенда опадів: кольорові «плашки» зі шкали шару (стоп 0 мм — прозорий, його пропускаємо)
+// Легенда шару з палітрою: кольорові «плашки» зі шкали. Будується з палітри (звичайні дані), а не з шару Leaflet,
+// тож працює, навіть якщо Leaflet не завантажився. Палітра null → легенду ховаємо.
 class Legend {
   #box = $('legend');
+  #title = $('legend-title');
+  #scale = $('legend-scale');
 
-  build() {
-    const stops = L.PrecipitationLayer?.STOPS;
-    if (!stops) return;
-    const scale = $('legend-scale');
-    stops.slice(1).forEach(([mm, r, g, b], i, arr) => {
+  show(palette) {
+    this.#box.hidden = !palette;
+    if (!palette) return;
+    this.#title.textContent = palette.title;
+    const stops = palette.skipFirstInLegend ? palette.stops.slice(1) : palette.stops;
+    const cells = stops.map(([value, r, g, b], i) => {
       const cell = document.createElement('span');
       cell.style.background = `rgb(${r}, ${g}, ${b})`;
-      cell.textContent = i === arr.length - 1 ? `${mm}+` : String(mm);
-      scale.append(cell);
+      cell.textContent = `${value}${i === stops.length - 1 ? palette.legendSuffix : ''}`;
+      return cell;
     });
-  }
-
-  setVisible(visible) {
-    this.#box.hidden = !visible;
+    this.#scale.replaceChildren(...cells);
   }
 }
 
@@ -390,7 +415,7 @@ class WeatherMap {
     this.#switcher.setActive(name);
     this.#hint.textContent = source.hint;
     this.#timeline.setVisible(source.isFrame);
-    this.#legend.setVisible(source.hasLegend);
+    this.#legend.show(source.palette);
     this.#timeline.stop();
     this.#frameSeq++; // скасовує відповіді попередніх запитів
     if (!this.#map) return;
@@ -459,12 +484,12 @@ class App {
     // Ін'єкція залежностей: Timeline не знає про карту, а карта — про DOM повзунка; їх зв'язує тільки колбек
     const timeline = new Timeline({ onChange: (hour) => this.#map.loadFrame(hour) });
     const legend = new Legend();
-    legend.build();
     this.#map = new WeatherMap({
       api: this.#api,
       sources: [
         new WindSource(),
         new PrecipitationSource(),
+        new TemperatureSource(),
         new TileSource('precipitation_new', 'Опади зараз (OpenWeatherMap): від світлого (слабкі) до насиченого (сильні).'),
         new TileSource('clouds_new', 'Хмарність: чим біліше й щільніше, тим більше хмар.'),
         new TileSource('wind_new', 'Швидкість вітру: чим насиченіший колір, тим сильніший вітер.'),

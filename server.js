@@ -1,5 +1,6 @@
 // Composition root: єдине місце, де «збираємо» застосунок і звʼязуємо класи між собою.
 //   HTTP → Router → Controller → Service → Client → OpenWeatherMap / Open-Meteo
+import path from 'node:path';
 import { AppConfig } from './src/AppConfig.js';
 import { OpenMeteoClient } from './src/clients/OpenMeteoClient.js';
 import { OpenWeatherClient } from './src/clients/OpenWeatherClient.js';
@@ -11,6 +12,7 @@ import { Router } from './src/http/Router.js';
 import { StaticHandler } from './src/http/StaticHandler.js';
 import { WeatherApp } from './src/http/WeatherApp.js';
 import { GridService } from './src/services/GridService.js';
+import { FileSnapshotStore } from './src/services/SnapshotStore.js';
 import { WeatherService } from './src/services/WeatherService.js';
 
 let config;
@@ -23,13 +25,18 @@ try {
 
 // Ін'єкція залежностей вручну: кожен клас отримує те, що йому потрібно, через конструктор.
 const weatherService = new WeatherService({ client: new OpenWeatherClient({ apiKey: config.apiKey }) });
-const gridService = new GridService({ client: new OpenMeteoClient() });
+// Знімок сітки лежить у .cache/ (не в git): перезапуск сервера не б'є по ліміту Open-Meteo
+const gridService = new GridService({
+  client: new OpenMeteoClient(),
+  store: new FileSnapshotStore(path.join(import.meta.dirname, '.cache', 'grid-snapshot.json')),
+});
 
 const router = new Router({ fallback: new StaticHandler(config.publicDir) })
   .get('/api/weather', new WeatherController({ weatherService }))
   .get('/api/countries', new CountriesController({ weatherService }))
   .get(TileController.ROUTE, new TileController({ weatherService }))
   .get('/api/wind', new FrameController((hour) => gridService.getWindFrame(hour)))
-  .get('/api/precipitation', new FrameController((hour) => gridService.getPrecipitationFrame(hour)));
+  .get('/api/precipitation', new FrameController((hour) => gridService.getPrecipitationFrame(hour)))
+  .get('/api/temperature', new FrameController((hour) => gridService.getTemperatureFrame(hour)));
 
 new WeatherApp({ router }).listen(config.port, () => console.log(`Weather Dashboard: http://localhost:${config.port}`));

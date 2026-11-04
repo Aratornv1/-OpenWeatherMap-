@@ -12,7 +12,7 @@ import { GridSnapshot } from '../src/domain/GridSnapshot.js';
 import { DailyForecast } from '../src/domain/DailyForecast.js';
 import { Weather } from '../src/domain/Weather.js';
 import { ForecastBuilder } from '../src/domain/ForecastBuilder.js';
-import { Frame, WindFrame, PrecipitationFrame } from '../src/domain/Frame.js';
+import { Frame, ScalarFrame, WindFrame, PrecipitationFrame, TemperatureFrame } from '../src/domain/Frame.js';
 import { ValidationError } from '../src/errors.js';
 
 const isValidation = (e) => e instanceof ValidationError && e.status === 400;
@@ -296,4 +296,26 @@ test('поліморфізм: JSON.stringify поводиться по-різн�
   const rain = JSON.parse(JSON.stringify(new PrecipitationFrame(meta, {}, [])));
   assert.ok('data' in wind && !('values' in wind));
   assert.ok('values' in rain && !('data' in rain));
+});
+
+test('ScalarFrame — абстрактний; PrecipitationFrame і TemperatureFrame — його нащадки з однаковою формою JSON', () => {
+  const meta = { hour: 1, hours: 70, time: '2026-11-03T10:00:00.000Z' };
+  assert.throws(() => new ScalarFrame(meta, {}, []), TypeError);
+  const t = new TemperatureFrame(meta, Grid.EUROPE.describe(), [-3.5, null, 12]);
+  assert.ok(t instanceof ScalarFrame && t instanceof Frame);
+  assert.deepEqual(JSON.parse(JSON.stringify(t)).values, [-3.5, null, 12]);
+  assert.deepEqual(Object.keys(t.toJSON()), Object.keys(new PrecipitationFrame(meta, {}, []).toJSON()));
+});
+
+// ── GridSnapshot.fromJSON ──
+test('GridSnapshot.fromJSON: коректний JSON відновлюється, зіпсований чи старого формату → null', () => {
+  const ok = { fetchedAt: 1, startSec: 2, hours: 2, speed: [[1, 2]], dir: [[1, 2]], precip: [[0, 0]], temp: [[5, 6]] };
+  const restored = GridSnapshot.fromJSON(JSON.parse(JSON.stringify(ok)));
+  assert.ok(restored instanceof GridSnapshot);
+  assert.deepEqual(restored.temp, [[5, 6]]);
+  assert.equal(GridSnapshot.fromJSON(null), null);
+  assert.equal(GridSnapshot.fromJSON({ ...ok, temp: undefined }), null); // знімок без температури (старий формат)
+  assert.equal(GridSnapshot.fromJSON({ ...ok, temp: [] }), null);
+  assert.equal(GridSnapshot.fromJSON({ ...ok, dir: [[1], [2]] }), null); // різна кількість точок
+  assert.equal(GridSnapshot.fromJSON({ ...ok, fetchedAt: 'вчора' }), null);
 });

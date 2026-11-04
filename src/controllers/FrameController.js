@@ -3,7 +3,8 @@ import { Controller } from './Controller.js';
 // Обробник кадру по сітці: GET ...?hour=N → JSON. Один клас обслуговує і вітер, і опади:
 // йому передають функцію сервісу, яка повертає Frame (WindFrame чи PrecipitationFrame).
 //   /api/wind          → { hour, hours, time, data: [U, V] }
-//   /api/precipitation → { hour, hours, time, grid, values }
+//   /api/precipitation → { hour, hours, time, grid, values }   (мм/год)
+//   /api/temperature   → { hour, hours, time, grid, values }   (°C)
 export class FrameController extends Controller {
   #getFrame;
 

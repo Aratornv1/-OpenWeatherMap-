@@ -2,16 +2,18 @@
 // Бере прогноз по сітці над Європою ОДНИМ набором запитів до Open-Meteo, кешує його
 // (щоб не вичерпати ліміти) і віддає по одній годині у вигляді кадрів:
 //   • вітер  → WindFrame ([U, V] для leaflet-velocity);
-//   • опади  → PrecipitationFrame (плоский масив мм/год для власного canvas-шару).
+//   • опади  → PrecipitationFrame (плоский масив мм/год для власного canvas-шару);
+//   • температура → TemperatureFrame (плоский масив °C для того ж canvas-шару).
 import { ForecastHour } from '../domain/ForecastHour.js';
 import { Grid } from '../domain/Grid.js';
 import { GridSnapshot } from '../domain/GridSnapshot.js';
-import { PrecipitationFrame, WindFrame } from '../domain/Frame.js';
+import { PrecipitationFrame, TemperatureFrame, WindFrame } from '../domain/Frame.js';
 import { WindVector } from '../domain/WindVector.js';
 import { UpstreamError } from '../errors.js';
 
 const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const round2 = (n) => Math.round(n * 100) / 100;
+const round1 = (n) => Math.round(n * 10) / 10;
 
 export class GridService {
   static FORECAST_HOURS = 72;
@@ -26,9 +28,13 @@ export class GridService {
   #pauseMs;
   #snapshot = null; // GridSnapshot у памʼяті
   #inflight = null; // Promise оновлення, що вже виконується
+  #store;
+  #restored = false; // чи вже пробували підняти знімок із диска
 
-  constructor({ client, grid = Grid.EUROPE, now = Date.now, sleep = sleepMs, pauseMs = 1000 }) {
+  // store — необовʼязковий дисковий кеш (load/save); без нього знімок живе лише в памʼяті
+  constructor({ client, grid = Grid.EUROPE, now = Date.now, sleep = sleepMs, pauseMs = 1000, store = null }) {
     this.#client = client;
+    this.#store = store;
     this.#grid = grid;
     this.#now = now;
     this.#sleep = sleep; // у тесті «сон» миттєвий
@@ -55,6 +61,13 @@ export class GridService {
     return new PrecipitationFrame(meta, this.#grid.describe(), values);
   }
 
+  // Температура на 2 м, °C. Немає даних → null (0 °C — теж температура, її підставляти не можна).
+  async getTemperatureFrame(rawHour) {
+    const { snapshot, idx, meta } = await this.#locate(rawHour);
+    const values = snapshot.temp.map((series) => (Number.isFinite(series[idx]) ? round1(series[idx]) : null));
+    return new TemperatureFrame(meta, this.#grid.describe(), values);
+  }
+
   // Спільна частина для всіх кадрів: перевірка години, свіжий знімок, зсув до поточної години
   async #locate(rawHour) {
     const hour = ForecastHour.parse(rawHour).value;
@@ -65,9 +78,14 @@ export class GridService {
 
   // Свіжий знімок → віддаємо. Інакше оновлюємо; кілька одночасних запитів ділять один запит назовні.
   async #freshSnapshot() {
+    await this.#restore();
     if (this.#snapshot?.isFresh(this.#now(), GridService.TTL_MS)) return this.#snapshot;
     this.#inflight ??= this.#download()
-      .then((fresh) => (this.#snapshot = fresh))
+      .then(async (fresh) => {
+        this.#snapshot = fresh;
+        await this.#store?.save(fresh);
+        return fresh;
+      })
       .catch((err) => {
         if (!this.#snapshot) throw err;
         // Є старий знімок: лишаємо його й пробуємо знову за 10 хвилин, а не на кожен запит
@@ -78,11 +96,21 @@ export class GridService {
     return this.#inflight;
   }
 
+  // Одноразово, перед першим запитом: беремо знімок із диска, якщо він ще свіжий і підходить до нашої сітки
+  async #restore() {
+    if (this.#restored || !this.#store) return;
+    this.#restored = true;
+    const saved = await this.#store.load();
+    const fits = saved && saved.speed.length === this.#grid.pointCount;
+    if (fits && saved.isFresh(this.#now(), GridService.TTL_MS)) this.#snapshot = saved;
+  }
+
   async #download() {
     const points = this.#grid.points();
     const speed = [];
     const dir = [];
     const precip = [];
+    const temp = [];
     let times = null;
 
     for (let i = 0; i < points.length; i += GridService.CHUNK_SIZE) {
@@ -96,8 +124,9 @@ export class GridService {
         speed.push(r.hourly.wind_speed_10m);
         dir.push(r.hourly.wind_direction_10m);
         precip.push(r.hourly.precipitation);
+        temp.push(r.hourly.temperature_2m);
       }
     }
-    return new GridSnapshot({ fetchedAt: this.#now(), startSec: times[0], hours: times.length, speed, dir, precip });
+    return new GridSnapshot({ fetchedAt: this.#now(), startSec: times[0], hours: times.length, speed, dir, precip, temp });
   }
 }
